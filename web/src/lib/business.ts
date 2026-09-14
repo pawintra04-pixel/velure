@@ -1,6 +1,15 @@
 import { adminPool } from "@/db/client";
 
-export type PublicBusiness = { id: string; name: string; slug: string };
+export type PublicBusiness = {
+  id: string;
+  name: string;
+  slug: string;
+  logo_url: string | null;
+  description: string | null;
+  address: string | null;
+  contact_phone: string | null;
+  contact_email: string | null;
+};
 
 /**
  * Resolves a business's public booking-page slug to its id — necessarily
@@ -10,7 +19,8 @@ export type PublicBusiness = { id: string; name: string; slug: string };
  */
 export async function getBusinessBySlug(slug: string): Promise<PublicBusiness | null> {
   const { rows: [row] } = await adminPool.query(
-    `SELECT id, name, slug FROM businesses WHERE slug = $1`,
+    `SELECT id, name, slug, logo_url, description, address, contact_phone, contact_email
+     FROM businesses WHERE slug = $1`,
     [slug]
   );
   return row ?? null;

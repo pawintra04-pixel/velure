@@ -38,6 +38,11 @@ const NAV_ITEMS = [
     href: "/dashboard/reports",
     icon: "M4 16V9m4.5 7V4m4.5 12v-5m4.5 5V7",
   },
+  {
+    label: "Settings",
+    href: "/dashboard/settings",
+    icon: "M10 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Zm7-2.5a7 7 0 0 1-.1 1.2l1.5 1.2-1.5 2.6-1.8-.6a7 7 0 0 1-2 1.2L12.7 17H7.3l-.4-1.9a7 7 0 0 1-2-1.2l-1.8.6-1.5-2.6L3.1 10.7A7 7 0 0 1 3 10c0-.4 0-.8.1-1.2L1.6 7.6l1.5-2.6 1.8.6a7 7 0 0 1 2-1.2L7.3 3h5.4l.4 1.9a7 7 0 0 1 2 1.2l1.8-.6 1.5 2.6-1.5 1.1c.1.4.1.8.1 1.2Z",
+  },
 ];
 
 export function Sidebar({ ownerEmail }: { ownerEmail: string }) {

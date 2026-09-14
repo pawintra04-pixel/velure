@@ -30,7 +30,7 @@ export default async function ManageBookingPage({
   const { rows: [booking] } = await adminPool.query(
     `SELECT b.id, b.status, b.amount, b.start_time, b.service_id,
             s.name AS service_name, st.name AS staff_name,
-            biz.name AS business_name, biz.slug AS business_slug,
+            biz.name AS business_name, biz.slug AS business_slug, biz.logo_url AS business_logo_url,
             biz.reschedule_cutoff_hours, biz.cancel_cutoff_hours
      FROM bookings b
      JOIN services s ON s.id = b.service_id
@@ -49,7 +49,7 @@ export default async function ManageBookingPage({
 
   return (
     <>
-      <BookingHeader businessName={booking.business_name} slug={booking.business_slug} />
+      <BookingHeader businessName={booking.business_name} slug={booking.business_slug} logoUrl={booking.business_logo_url} />
       <div className="mx-auto max-w-lg px-6 py-16">
         <h1 className="text-2xl font-semibold">Manage your booking</h1>
         <p className="mt-1 text-sm text-ink-secondary">{booking.business_name}</p>

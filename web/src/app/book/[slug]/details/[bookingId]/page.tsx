@@ -54,7 +54,7 @@ export default async function BookingDetailsPage({
   if (expired) {
     return (
       <>
-        <BookingHeader businessName={business.name} slug={slug} />
+        <BookingHeader businessName={business.name} slug={slug} logoUrl={business.logo_url} />
         <div className="mx-auto flex max-w-md flex-col items-center px-6 py-10 text-center">
           <h1 className="text-2xl font-semibold">This hold has expired</h1>
           <p className="mt-2 text-sm text-ink-secondary">
@@ -73,7 +73,7 @@ export default async function BookingDetailsPage({
 
   return (
     <>
-      <BookingHeader businessName={business.name} slug={slug} />
+      <BookingHeader businessName={business.name} slug={slug} logoUrl={business.logo_url} />
       <div className="mx-auto max-w-4xl px-6 py-10 lg:px-10">
         <h1 className="text-2xl font-semibold">Almost done</h1>
         <p className="mt-1 text-sm text-ink-secondary">

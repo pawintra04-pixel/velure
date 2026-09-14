@@ -24,9 +24,19 @@ export default async function BookServicesPage({
 
   return (
     <>
-      <BookingHeader businessName={business.name} slug={slug} />
+      <BookingHeader businessName={business.name} slug={slug} logoUrl={business.logo_url} />
       <div className="mx-auto max-w-5xl px-6 py-10 lg:px-10">
         <h1 className="text-2xl font-semibold">Choose a service</h1>
+        {business.description && (
+          <p className="mt-2 max-w-2xl text-sm text-ink-secondary">{business.description}</p>
+        )}
+        {(business.address || business.contact_phone || business.contact_email) && (
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-ink-muted">
+            {business.address && <span>{business.address}</span>}
+            {business.contact_phone && <span>{business.contact_phone}</span>}
+            {business.contact_email && <span>{business.contact_email}</span>}
+          </div>
+        )}
 
         <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {services.length === 0 && (

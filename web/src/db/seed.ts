@@ -27,6 +27,10 @@ async function wipeExistingDemoData() {
     await adminPool.query(`DELETE FROM staff_services WHERE business_id = $1`, [businessId]);
     await adminPool.query(`DELETE FROM customers WHERE business_id = $1`, [businessId]);
     await adminPool.query(`DELETE FROM services WHERE business_id = $1`, [businessId]);
+    // staff_hours cascades on staff deletion; business_hours doesn't cascade
+    // on business deletion (no ON DELETE CASCADE there), so it must go
+    // first or the final DELETE FROM businesses hits a FK violation.
+    await adminPool.query(`DELETE FROM business_hours WHERE business_id = $1`, [businessId]);
     await adminPool.query(`DELETE FROM staff WHERE business_id = $1`, [businessId]);
     await adminPool.query(`DELETE FROM resources WHERE business_id = $1`, [businessId]);
     await adminPool.query(`DELETE FROM businesses WHERE id = $1`, [businessId]);
@@ -48,9 +52,21 @@ async function main() {
     [businessId, DEMO_OWNER_EMAIL, passwordHash]
   );
 
+  await adminPool.query(
+    `INSERT INTO business_hours (business_id, day_of_week, is_closed, open_time, close_time)
+     SELECT $1, dow, false, '09:00', '19:00' FROM generate_series(0, 6) AS dow`,
+    [businessId]
+  );
+
   const { rows: [staffMember] } = await adminPool.query(
     `INSERT INTO staff (business_id, name) VALUES ($1, $2) RETURNING id`,
     [businessId, "Somchai (Massage Therapist)"]
+  );
+
+  await adminPool.query(
+    `INSERT INTO staff_hours (business_id, staff_id, day_of_week, is_off, start_time, end_time)
+     SELECT $1, $2, dow, false, '09:00', '19:00' FROM generate_series(0, 6) AS dow`,
+    [businessId, staffMember.id]
   );
 
   const { rows: [room] } = await adminPool.query(

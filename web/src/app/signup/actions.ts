@@ -32,6 +32,15 @@ export async function signUp(_prev: AuthResult | null, formData: FormData): Prom
       `INSERT INTO businesses (name, slug, timezone) VALUES ($1, $2, $3) RETURNING id`,
       [businessName, slugify(businessName), "Asia/Bangkok"]
     );
+    // Default hours for a brand new business — same 09:00-19:00 every day
+    // the old hardcoded stub used, editable afterward from Settings. Uses
+    // adminPool (this whole signup flow runs before any session/business
+    // context exists), same exception as everything else in this file.
+    await client.query(
+      `INSERT INTO business_hours (business_id, day_of_week, is_closed, open_time, close_time)
+       SELECT $1, dow, false, '09:00', '19:00' FROM generate_series(0, 6) AS dow`,
+      [business.id]
+    );
     const passwordHash = await hashPassword(password);
     const { rows: [owner] } = await client.query(
       `INSERT INTO owners (business_id, email, password_hash) VALUES ($1, $2, $3) RETURNING id`,

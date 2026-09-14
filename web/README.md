@@ -99,6 +99,17 @@ actually enter details (and possibly complete 3D Secure) client-side.
     plus `service_custom_fields` and `booking_field_responses` (both RLS'd
     the same way as every other tenant table, added inline here since
     `007_row_level_security.sql` already ran).
+  - `012_business_settings.sql`: business profile fields (`business_type`,
+    `logo_url`, `description`, `address`, `contact_phone`, `contact_email`)
+    plus `business_hours` and `staff_hours` — real per-weekday operating
+    hours and per-staff schedules (with an optional break window) replacing
+    `availability.ts`'s old hardcoded 09:00-19:00-for-everyone stub.
+    Backfills every existing business/staff member with those same hours
+    so nothing changes until an owner visits Settings; `signup` and
+    `addStaff` insert default rows for new ones (a new staff member
+    inherits the business's current hours rather than the stub, so
+    narrowing shop hours in Settings doesn't get silently overridden by
+    the next hire).
 - `src/db/client.ts` — `appPool` (the non-superuser `app_user` role RLS
   actually applies to) and `withBusinessContext(businessId, fn)`, which
   every business-scoped query should go through. `adminPool` bypasses RLS
@@ -174,15 +185,18 @@ actually enter details (and possibly complete 3D Secure) client-side.
   `RESEND_API_KEY` (and optionally `RESEND_FROM_EMAIL`, `APP_BASE_URL`) in
   `.env.local` — **not yet tested against a live send**, only verified to
   type-check and to correctly skip when the key is absent.
-- `src/lib/availability.ts` — computes open slots for a service/date.
-  **STUB**: business hours are hardcoded (09:00–19:00 Asia/Bangkok) since
-  no working-hours data model exists yet (Business Setup engine, not
-  built). The slot list is a UI convenience only — the database's overlap
-  EXCLUDE constraint is what actually prevents double-booking, so a stale
-  slot losing a race just surfaces as "that time was just taken." Also
-  excludes bookings whose `hold_expires_at` has already passed even if
-  their `status` hasn't been swept to `EXPIRED` yet (see next point) — a
-  read can land between two writes and see a not-yet-swept abandoned hold.
+- `src/lib/availability.ts` — computes open slots for a service/date from
+  real `business_hours` and `staff_hours` (a weekday can be closed
+  entirely, and a staff member's own shift plus one optional break window
+  further narrows the business's hours — the effective window is the
+  overlap of both, so a staff member is never bookable outside their own
+  shift even if the shop is open later). The slot list is still a UI
+  convenience only — the database's overlap EXCLUDE constraint is what
+  actually prevents double-booking, so a stale slot losing a race just
+  surfaces as "that time was just taken." Also excludes bookings whose
+  `hold_expires_at` has already passed even if their `status` hasn't been
+  swept to `EXPIRED` yet (see next point) — a read can land between two
+  writes and see a not-yet-swept abandoned hold.
 - **Stale-hold sweeping**: quick booking makes abandoned holds more likely
   (a slot can now be locked with zero contact info attached), and the
   EXCLUDE constraint only checks `status`, not `hold_expires_at` — so
@@ -206,6 +220,14 @@ actually enter details (and possibly complete 3D Secure) client-side.
   Deleting one with existing bookings is blocked (FK violation caught and
   turned into a readable error via `src/app/dashboard/error.tsx`) rather
   than cascading the delete — booking history shouldn't silently vanish.
+  Each team member has an "Hours" panel to set their own weekly working
+  hours and one optional break per day (`updateStaffHours` in
+  `staff/actions.ts`), read by `availability.ts`.
+- `src/app/dashboard/settings/` — business profile (name, type, logo,
+  description, address, contact info — the description/address/contact
+  also show on the public booking page) and weekly opening hours, per
+  weekday, with a "closed" toggle. Both feed `availability.ts` directly;
+  there's no cache to invalidate beyond Next's own route revalidation.
 - `src/app/dashboard/bookings/` — List / Day / Week / Month views (`?view=`
   + `?date=` in the URL, so every view is linkable). All four read through
   `src/lib/bookings-data.ts`'s shared `getBookingsInRange`; Month/Week fetch
@@ -246,16 +268,20 @@ webhook → confirmed loop working end to end in the real app, owner-side
 management (services, staff, a full calendar with status actions, reports
 with CSV export + print), customer self-service reschedule/cancel with
 per-business cutoff policy (verified live, including the "too close to
-start time, blocked" path), and per-service customization (description,
+start time, blocked" path), per-service customization (description,
 photo, owner-defined required/important/optional booking-form questions —
 verified live end to end, including the required-field submit block and
-the answers landing in the database). Booking confirmation emails are
-coded and wired into both confirmation paths but genuinely untested — no
-`RESEND_API_KEY` supplied yet.
+the answers landing in the database), and a real business Settings page
+(profile + per-weekday opening hours) plus per-staff weekly hours and
+break windows, both wired directly into `availability.ts` (verified via
+direct calls: a closed weekday and a staff break both correctly zero out
+those slots) — this replaces the old hardcoded-09:00–19:00 stub entirely.
+Booking confirmation emails are coded and wired into both confirmation
+paths but genuinely untested — no `RESEND_API_KEY` supplied yet.
 
 Not started: customers CRUD UI (only `db/seed.ts` can create these), AI
 onboarding, embed widget, refunds, connecting a Stripe account for a newly
-signed-up business (no UI for it yet), staff-hours/working-hours management
-(still the hardcoded 09:00–19:00 stub in `availability.ts`), Velure's own
-SaaS subscription billing (charging business owners monthly/yearly —
-discussed, not designed).
+signed-up business (no UI for it yet), multi-seat/class-style bookings
+(every booking is still one customer, one staff member, one slot), and
+Velure's own SaaS subscription billing (charging business owners
+monthly/yearly — discussed, not designed).

@@ -27,6 +27,75 @@ export async function addStaff(_prev: ActionResult | null, formData: FormData): 
         [owner.businessId, staff.id, serviceId]
       );
     }
+    // Default a new staff member's weekly schedule to whatever the
+    // business's own hours already are (rather than re-hardcoding
+    // 09:00-19:00) — an owner who already narrowed their shop's hours in
+    // Settings shouldn't have every new hire silently open outside them.
+    await c.query(
+      `INSERT INTO staff_hours (business_id, staff_id, day_of_week, is_off, start_time, end_time)
+       SELECT business_id, $1, day_of_week, is_closed, open_time, close_time
+       FROM business_hours WHERE business_id = $2`,
+      [staff.id, owner.businessId]
+    );
+  });
+
+  revalidatePath("/dashboard/staff");
+  return { ok: true };
+}
+
+const DAYS = [0, 1, 2, 3, 4, 5, 6] as const;
+
+export async function updateStaffHours(
+  _prev: ActionResult | null,
+  formData: FormData
+): Promise<ActionResult> {
+  const owner = await requireOwner();
+  const staffId = String(formData.get("staffId") ?? "");
+  if (!staffId) return { ok: false, error: "Missing staff member." };
+
+  const rows = DAYS.map((dow) => {
+    const isOff = formData.get(`off_${dow}`) === "on";
+    const start = String(formData.get(`start_${dow}`) ?? "");
+    const end = String(formData.get(`end_${dow}`) ?? "");
+    const breakStart = String(formData.get(`breakStart_${dow}`) ?? "");
+    const breakEnd = String(formData.get(`breakEnd_${dow}`) ?? "");
+    return { dow, isOff, start, end, breakStart, breakEnd };
+  });
+
+  for (const row of rows) {
+    if (row.isOff) continue;
+    if (!row.start || !row.end || row.start >= row.end) {
+      return { ok: false, error: "Each working day needs an end time after its start time." };
+    }
+    const hasBreak = row.breakStart || row.breakEnd;
+    if (hasBreak) {
+      if (!row.breakStart || !row.breakEnd || row.breakStart >= row.breakEnd) {
+        return { ok: false, error: "A break needs an end time after its start time." };
+      }
+      if (row.breakStart < row.start || row.breakEnd > row.end) {
+        return { ok: false, error: "A break must fall within that day's working hours." };
+      }
+    }
+  }
+
+  await withBusinessContext(owner.businessId, async (c) => {
+    for (const row of rows) {
+      const hasBreak = !row.isOff && row.breakStart && row.breakEnd;
+      await c.query(
+        `UPDATE staff_hours
+         SET is_off = $1, start_time = $2, end_time = $3, break_start = $4, break_end = $5
+         WHERE staff_id = $6 AND day_of_week = $7`,
+        [
+          row.isOff,
+          row.isOff ? null : row.start,
+          row.isOff ? null : row.end,
+          hasBreak ? row.breakStart : null,
+          hasBreak ? row.breakEnd : null,
+          staffId,
+          row.dow,
+        ]
+      );
+    }
   });
 
   revalidatePath("/dashboard/staff");

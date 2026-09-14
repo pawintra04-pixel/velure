@@ -1,11 +1,5 @@
 import { withBusinessContext } from "@/db/client";
 
-// STUB: no working-hours/business-hours data model exists yet (that's part
-// of the Business Setup engine, not built). Hardcoded so the booking flow
-// can be proven end-to-end; replace with a real per-business schedule
-// later. Asia/Bangkok, 09:00-19:00, matching the seeded demo business.
-const BUSINESS_OPEN_HOUR = 9;
-const BUSINESS_CLOSE_HOUR = 19;
 const SLOT_GRANULARITY_MINUTES = 30;
 
 export type Slot = { startTime: string; endTime: string };
@@ -15,6 +9,19 @@ type ServiceInfo = {
   bufferMinutes: number;
   staffId: string;
 };
+
+function timeToMinutes(t: string): number {
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
+}
+
+// Postgres EXTRACT(DOW)/JS getUTCDay() both use 0=Sunday..6=Saturday.
+// dateISO has no time component, so treating it as UTC midnight is just a
+// timezone-agnostic way to read back the calendar date's weekday — it's
+// not claiming that moment is actually midnight UTC anywhere real.
+function dayOfWeek(dateISO: string): number {
+  return new Date(`${dateISO}T00:00:00Z`).getUTCDay();
+}
 
 /**
  * Slots are a UI convenience only — the actual "is this really free" check
@@ -54,6 +61,47 @@ export async function getAvailableSlots(
       staffId: assignment.staff_id,
     };
 
+    const dow = dayOfWeek(dateISO);
+
+    const { rows: [bizHours] } = await c.query<{
+      is_closed: boolean;
+      open_time: string | null;
+      close_time: string | null;
+    }>(`SELECT is_closed, open_time, close_time FROM business_hours WHERE business_id = $1 AND day_of_week = $2`, [
+      businessId,
+      dow,
+    ]);
+    // No row = treat as closed rather than silently falling back to "open
+    // all day" — every business gets a full week of rows at signup/backfill,
+    // so a missing row means something's wrong, not "unrestricted."
+    if (!bizHours || bizHours.is_closed) return [];
+
+    const { rows: [staffHours] } = await c.query<{
+      is_off: boolean;
+      start_time: string | null;
+      end_time: string | null;
+      break_start: string | null;
+      break_end: string | null;
+    }>(
+      `SELECT is_off, start_time, end_time, break_start, break_end
+       FROM staff_hours WHERE staff_id = $1 AND day_of_week = $2`,
+      [info.staffId, dow]
+    );
+    if (!staffHours || staffHours.is_off) return [];
+
+    // Effective window is the overlap of the business's hours and this
+    // staff member's own hours for the day — a staff member can't be
+    // bookable before the shop opens, after it closes, or outside their
+    // own shift even if the shop is open later.
+    const openMinutes = Math.max(timeToMinutes(bizHours.open_time!), timeToMinutes(staffHours.start_time!));
+    const closeMinutes = Math.min(timeToMinutes(bizHours.close_time!), timeToMinutes(staffHours.end_time!));
+    if (openMinutes >= closeMinutes) return [];
+
+    const breakRange =
+      staffHours.break_start && staffHours.break_end
+        ? { start: timeToMinutes(staffHours.break_start), end: timeToMinutes(staffHours.break_end) }
+        : null;
+
     const { rows: existingBookings } = await c.query<{
       start_time: string;
       end_time: string;
@@ -72,28 +120,38 @@ export async function getAvailableSlots(
       [info.staffId, dateISO, excludeBookingId ?? null]
     );
 
-    return buildSlots(dateISO, info, existingBookings);
+    return buildSlots(dateISO, info, existingBookings, openMinutes, closeMinutes, breakRange);
   });
 }
 
 function buildSlots(
   dateISO: string,
   info: ServiceInfo,
-  existing: { start_time: string; end_time: string }[]
+  existing: { start_time: string; end_time: string }[],
+  openMinutes: number,
+  closeMinutes: number,
+  breakRange: { start: number; end: number } | null
 ): Slot[] {
   const slots: Slot[] = [];
   const now = new Date();
+  const dayStart = new Date(`${dateISO}T00:00:00+07:00`);
+
   const occupiedRanges = existing.map((b) => ({
     start: new Date(b.start_time).getTime(),
     end: new Date(b.end_time).getTime(),
   }));
+  if (breakRange) {
+    occupiedRanges.push({
+      start: dayStart.getTime() + breakRange.start * 60_000,
+      end: dayStart.getTime() + breakRange.end * 60_000,
+    });
+  }
 
-  const dayStart = new Date(`${dateISO}T00:00:00+07:00`);
   const totalBlockMinutes = info.durationMinutes + info.bufferMinutes;
 
   for (
-    let minutes = BUSINESS_OPEN_HOUR * 60;
-    minutes + totalBlockMinutes <= BUSINESS_CLOSE_HOUR * 60;
+    let minutes = openMinutes;
+    minutes + totalBlockMinutes <= closeMinutes;
     minutes += SLOT_GRANULARITY_MINUTES
   ) {
     const start = new Date(dayStart.getTime() + minutes * 60_000);

@@ -1,18 +1,29 @@
 import { requireOwner } from "@/lib/auth";
 import { withBusinessContext } from "@/db/client";
 import { AddStaffForm } from "./AddStaffForm";
-import { deleteStaff } from "./actions";
+import { StaffCard, type Staff } from "./StaffCard";
 
 export default async function StaffPage() {
   const owner = await requireOwner();
 
   const { staff, services } = await withBusinessContext(owner.businessId, async (c) => {
-    const staffResult = await c.query(
+    const staffResult = await c.query<Staff>(
       `SELECT st.id, st.name,
-              coalesce(array_agg(s.name) FILTER (WHERE s.id IS NOT NULL), '{}') AS service_names
+              coalesce(array_agg(s.name) FILTER (WHERE s.id IS NOT NULL), '{}') AS service_names,
+              coalesce(
+                json_agg(
+                  json_build_object(
+                    'day_of_week', sh.day_of_week, 'is_off', sh.is_off,
+                    'start_time', sh.start_time, 'end_time', sh.end_time,
+                    'break_start', sh.break_start, 'break_end', sh.break_end
+                  ) ORDER BY sh.day_of_week
+                ) FILTER (WHERE sh.id IS NOT NULL),
+                '[]'
+              ) AS hours
        FROM staff st
        LEFT JOIN staff_services ss ON ss.staff_id = st.id
        LEFT JOIN services s ON s.id = ss.service_id
+       LEFT JOIN staff_hours sh ON sh.staff_id = st.id
        GROUP BY st.id, st.name
        ORDER BY st.created_at`
     );
@@ -34,26 +45,7 @@ export default async function StaffPage() {
             </div>
           )}
           {staff.map((s) => (
-            <div
-              key={s.id}
-              className="flex items-center justify-between rounded-2xl border border-border bg-surface p-5"
-            >
-              <div>
-                <div className="font-medium">{s.name}</div>
-                <div className="mt-1 text-sm text-ink-muted">
-                  {s.service_names.length > 0 ? s.service_names.join(", ") : "No services assigned"}
-                </div>
-              </div>
-              <form action={deleteStaff}>
-                <input type="hidden" name="staffId" value={s.id} />
-                <button
-                  type="submit"
-                  className="rounded-full border border-border px-3 py-1.5 text-sm text-ink-secondary hover:bg-page"
-                >
-                  Delete
-                </button>
-              </form>
-            </div>
+            <StaffCard key={s.id} staff={s} />
           ))}
         </div>
 

@@ -35,7 +35,7 @@ export default async function ServiceBookingPage({
 
   return (
     <>
-      <BookingHeader businessName={business.name} slug={slug} />
+      <BookingHeader businessName={business.name} slug={slug} logoUrl={business.logo_url} />
       <div className="mx-auto max-w-5xl px-6 py-10 lg:px-10">
         <div className="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
           <div>

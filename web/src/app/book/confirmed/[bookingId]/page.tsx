@@ -14,7 +14,7 @@ export default async function ConfirmedPage({
 
   const { rows: [booking] } = await adminPool.query(
     `SELECT b.status, b.start_time, b.amount, s.name AS service_name, st.name AS staff_name,
-            biz.name AS business_name, biz.slug AS business_slug
+            biz.name AS business_name, biz.slug AS business_slug, biz.logo_url AS business_logo_url
      FROM bookings b
      JOIN services s ON s.id = b.service_id
      JOIN staff st ON st.id = b.staff_id
@@ -33,7 +33,7 @@ export default async function ConfirmedPage({
 
   return (
     <>
-      <BookingHeader businessName={booking.business_name} slug={booking.business_slug} />
+      <BookingHeader businessName={booking.business_name} slug={booking.business_slug} logoUrl={booking.business_logo_url} />
       <div className="mx-auto flex max-w-lg flex-col items-center px-6 py-16 text-center">
         <div className="text-4xl">✅</div>
         <h1 className="mt-4 text-2xl font-semibold">

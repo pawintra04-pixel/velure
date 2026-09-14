@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe";
 import { adminPool } from "@/db/client";
+import { sendBookingConfirmationEmail } from "@/lib/email";
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
@@ -41,11 +42,20 @@ export async function POST(req: Request) {
 
   if (event.type === "payment_intent.succeeded") {
     const paymentIntent = event.data.object as { id: string };
-    await adminPool.query(
+    const { rows: [confirmed] } = await adminPool.query(
       `UPDATE bookings SET status = 'CONFIRMED'
-       WHERE stripe_payment_intent_id = $1 AND status != 'CONFIRMED'`,
+       WHERE stripe_payment_intent_id = $1 AND status != 'CONFIRMED'
+       RETURNING id`,
       [paymentIntent.id]
     );
+    // Only when THIS call is what actually flipped it — not on a webhook
+    // that arrives after the booking was already confirmed, which would
+    // otherwise send a duplicate email even though processed_stripe_events
+    // already dedupes by event.id (a different event.id for the same
+    // payment could still reach here, e.g. a retried/out-of-order delivery).
+    if (confirmed) {
+      await sendBookingConfirmationEmail(confirmed.id);
+    }
   } else if (event.type === "payment_intent.payment_failed") {
     const paymentIntent = event.data.object as { id: string };
     await adminPool.query(

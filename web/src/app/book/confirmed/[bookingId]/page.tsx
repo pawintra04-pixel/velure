@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { adminPool } from "@/db/client";
 import { formatBaht } from "@/lib/money";
@@ -51,6 +52,12 @@ export default async function ConfirmedPage({
           <span>{formatBaht(booking.amount)}</span>
         </div>
       </div>
+
+      {booking.status === "CONFIRMED" && (
+        <Link href={`/book/manage/${bookingId}`} className="mt-4 text-sm text-accent underline">
+          Need to reschedule or cancel?
+        </Link>
+      )}
     </div>
   );
 }

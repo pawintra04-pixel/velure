@@ -91,6 +91,10 @@ actually enter details (and possibly complete 3D Secure) client-side.
   - `009_auth.sql`: adds `businesses.slug` (public booking-page id) and
     `owners`/`sessions` tables for real per-business login. One owner per
     business for MVP — no staff logins yet.
+  - `010_cancellation_policy.sql`: adds `reschedule_cutoff_hours` (default
+    12) and `cancel_cutoff_hours` (default 24) to `businesses` — per-business
+    policy, not hardcoded, even though there's no settings UI yet to change
+    them from the defaults.
 - `src/db/client.ts` — `appPool` (the non-superuser `app_user` role RLS
   actually applies to) and `withBusinessContext(businessId, fn)`, which
   every business-scoped query should go through. `adminPool` bypasses RLS
@@ -126,6 +130,28 @@ actually enter details (and possibly complete 3D Secure) client-side.
   for real (not just proven standalone like the spike). `/book/pay/[id]`
   and `/book/confirmed/[id]` stay unscoped by slug — reached by an
   unguessable booking id, not by business.
+- `/book/manage/[bookingId]` — customer self-service reschedule/cancel,
+  same unguessable-id-as-auth pattern as `/book/pay` and `/book/confirmed`
+  (the id itself, long and random, stands in for a session since customers
+  never log in). `src/app/book/manage/[bookingId]/actions.ts` re-validates
+  everything server-side — status is still `CONFIRMED`, and enough hours
+  remain per the business's `reschedule_cutoff_hours`/`cancel_cutoff_hours`
+  — even though the page only renders the buttons when already allowed,
+  because this is a public link and the page could be stale by the time it's
+  clicked. Reschedule reuses `getAvailableSlots` (now taking an optional
+  `excludeBookingId` so the booking being moved doesn't block its own
+  current slot) and, like the original booking flow, catches Postgres
+  `23P01` (the overlap EXCLUDE constraint) on the UPDATE itself — a slot can
+  still lose a race after the slot list was fetched.
+- `src/lib/email.ts` — fire-and-forget booking confirmation email via
+  Resend. Every call site (`book/actions.ts`'s free-service instant-confirm
+  path, and the Stripe webhook's `payment_intent.succeeded` handler) treats
+  this as best-effort: no `RESEND_API_KEY` just logs and skips, and a send
+  failure is caught and logged, never thrown — the booking itself is already
+  real by the time this runs, so email must never be able to break it. Needs
+  `RESEND_API_KEY` (and optionally `RESEND_FROM_EMAIL`, `APP_BASE_URL`) in
+  `.env.local` — **not yet tested against a live send**, only verified to
+  type-check and to correctly skip when the key is absent.
 - `src/lib/availability.ts` — computes open slots for a service/date.
   **STUB**: business hours are hardcoded (09:00–19:00 Asia/Bangkok) since
   no working-hours data model exists yet (Business Setup engine, not
@@ -194,12 +220,17 @@ per-business auth (signup creates an isolated business + owner + public
 booking slug immediately — verified live with two separate accounts, zero
 data bleed between them), an owner dashboard on real data (incl. a booking
 status donut), the full booking → hold → payment (PromptPay **or** card) →
-webhook → confirmed loop working end to end in the real app, and
-owner-side management: services, staff, a full calendar (list/day/week/
-month) with status actions, and reports with CSV export + print.
+webhook → confirmed loop working end to end in the real app, owner-side
+management (services, staff, a full calendar with status actions, reports
+with CSV export + print), and customer self-service reschedule/cancel with
+per-business cutoff policy (verified live, including the "too close to
+start time, blocked" path). Booking confirmation emails are coded and
+wired into both confirmation paths but genuinely untested — no
+`RESEND_API_KEY` supplied yet.
 
 Not started: customers CRUD UI (only `db/seed.ts` can create these), AI
-onboarding, embed widget, notifications, reschedule (cancel/complete/
-no-show exist, not reschedule), refunds, connecting a Stripe account for a
-newly signed-up business (no UI for it yet), staff-hours/working-hours
-management (still the hardcoded 09:00–19:00 stub in `availability.ts`).
+onboarding, embed widget, refunds, connecting a Stripe account for a newly
+signed-up business (no UI for it yet), staff-hours/working-hours management
+(still the hardcoded 09:00–19:00 stub in `availability.ts`), Velure's own
+SaaS subscription billing (charging business owners monthly/yearly —
+discussed, not designed).

@@ -27,7 +27,11 @@ type ServiceInfo = {
 export async function getAvailableSlots(
   businessId: string,
   serviceId: string,
-  dateISO: string // "YYYY-MM-DD", interpreted in the business's timezone
+  dateISO: string, // "YYYY-MM-DD", interpreted in the business's timezone
+  // Reschedule flow: the booking being moved shouldn't count as "occupying"
+  // its own current slot, or every reschedule would see its own time as
+  // unavailable.
+  excludeBookingId?: string
 ): Promise<Slot[]> {
   return withBusinessContext(businessId, async (c) => {
     const { rows: [service] } = await c.query<{
@@ -63,8 +67,9 @@ export async function getAvailableSlots(
        WHERE staff_id = $1
          AND status IN ('TEMPORARY_HOLD', 'PAYMENT_PENDING', 'CONFIRMED')
          AND (hold_expires_at IS NULL OR hold_expires_at >= now())
-         AND start_time::date = $2::date`,
-      [info.staffId, dateISO]
+         AND start_time::date = $2::date
+         AND ($3::uuid IS NULL OR id != $3::uuid)`,
+      [info.staffId, dateISO, excludeBookingId ?? null]
     );
 
     return buildSlots(dateISO, info, existingBookings);

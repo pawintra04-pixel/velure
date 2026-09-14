@@ -3,6 +3,7 @@
 import { withBusinessContext } from "@/db/client";
 import { stripe } from "@/lib/stripe";
 import { getAvailableSlots, type Slot } from "@/lib/availability";
+import { sendBookingConfirmationEmail } from "@/lib/email";
 
 export async function fetchSlots(
   businessId: string,
@@ -225,6 +226,7 @@ export async function completeBookingDetails(input: {
   }
 
   if (setup.amount === 0) {
+    await sendBookingConfirmationEmail(bookingId);
     return { ok: true, bookingId, needsPayment: false };
   }
 

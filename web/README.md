@@ -35,6 +35,12 @@ Sign in with the seeded demo account (printed by `db:seed`, also here):
 `/signup` — a booking page and dashboard are created for it immediately,
 fully isolated from every other business via RLS.
 
+**Viewing from another device on the same network** (not the machine
+running `npm run dev`): `localhost` won't resolve to anything — use the
+"Network" URL `next dev` prints instead (e.g. `http://192.168.1.109:3000`).
+`next.config.ts`'s `allowedDevOrigins` has to list that IP or Turbopack
+blocks the dev/HMR requests from it.
+
 ### To test the booking + payment flow locally
 
 Needs a Stripe test secret key and webhook forwarding, same as
@@ -127,18 +133,43 @@ payment step until one is attached by hand, same as the demo was.
   `tls` don't exist in the browser).
 - `src/lib/stripe.ts` — the Stripe client, hard-refuses to run against a
   non-`sk_test_` key.
+- `src/app/dashboard/services/`, `.../staff/` — add/delete services and
+  team members (staff can be assigned which services they perform).
+  Deleting one with existing bookings is blocked (FK violation caught and
+  turned into a readable error via `src/app/dashboard/error.tsx`) rather
+  than cascading the delete — booking history shouldn't silently vanish.
+- `src/app/dashboard/bookings/` — List / Day / Week / Month views (`?view=`
+  + `?date=` in the URL, so every view is linkable). All four read through
+  `src/lib/bookings-data.ts`'s shared `getBookingsInRange`; Month/Week fetch
+  exactly the date range their own grid renders (a mismatch here would
+  silently blank out real bookings on adjacent-month days). Status actions
+  (Complete/No-show/Cancel) validate the transition server-side against a
+  fixed allow-list (`ALLOWED_TRANSITIONS` in `bookings/actions.ts`) — never
+  trust a status string from the client beyond picking among those.
+- `src/app/dashboard/reports/` — overview + by-staff + by-service
+  breakdowns, date-range filter (week/month/year/all), CSV export
+  (`src/app/api/reports/export`) and a print view (`print:hidden` on chrome,
+  `window.print()`). `src/lib/reports-data.ts`'s `resolveReportRange`
+  deliberately spans each period's FULL range (including days after
+  "today"), matching the dashboard's own month-revenue calculation — a
+  confirmed future booking later this month is already-collected revenue,
+  not something to hide until its date arrives (this was a real bug caught
+  by comparing the two: first version cut "this month" off at today+1).
 
 ## What exists vs. doesn't yet
 
 Done: full MVP data model, RLS, booking-overlap prevention, real
 per-business auth (signup creates an isolated business + owner + public
 booking slug immediately — verified live with two separate accounts, zero
-data bleed between them), an owner dashboard on real data, and the full
+data bleed between them), an owner dashboard on real data, the full
 booking → hold → PromptPay payment → webhook → confirmed loop working end
-to end in the real app.
+to end in the real app, and owner-side management: services, staff,
+a full calendar (list/day/week/month) with status actions, and reports
+with CSV export + print.
 
-Not started: any dashboard management UI (bookings list, services, staff,
-customers CRUD — currently only `db/seed.ts` can create these), AI
+Not started: customers CRUD UI (only `db/seed.ts` can create these), AI
 onboarding, embed widget, notifications, card payments (only PromptPay is
-wired up), reschedule/cancel, refunds, connecting a Stripe account for a
-newly signed-up business (no UI for it yet).
+wired up), reschedule (cancel/complete/no-show exist, not reschedule),
+refunds, connecting a Stripe account for a newly signed-up business (no UI
+for it yet), staff-hours/working-hours management (still the hardcoded
+09:00–19:00 stub in `availability.ts`).

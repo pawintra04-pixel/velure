@@ -4,6 +4,7 @@ import { stripe } from "@/lib/stripe";
 import { formatBaht } from "@/lib/money";
 import { PaymentStatusPoller } from "./PaymentStatusPoller";
 import { CardPaymentForm } from "./CardPaymentForm";
+import { BookingHeader } from "@/components/booking/BookingHeader";
 
 // Uses adminPool directly, not withBusinessContext: this page is reached by
 // an unguessable booking id (UUID) before we know which business it belongs
@@ -18,7 +19,8 @@ export default async function PaymentPage({
   const { bookingId } = await params;
 
   const { rows: [booking] } = await adminPool.query(
-    `SELECT b.id, b.status, b.amount, b.stripe_payment_intent_id, biz.stripe_account_id
+    `SELECT b.id, b.status, b.amount, b.stripe_payment_intent_id, biz.stripe_account_id,
+            biz.name AS business_name, biz.slug AS business_slug
      FROM bookings b
      JOIN businesses biz ON biz.id = b.business_id
      WHERE b.id = $1`,
@@ -38,7 +40,9 @@ export default async function PaymentPage({
   const isCard = paymentIntent.payment_method_types?.includes("card");
 
   return (
-    <div className="mx-auto flex max-w-md flex-col items-center px-6 py-10 text-center">
+    <>
+      <BookingHeader businessName={booking.business_name} slug={booking.business_slug} />
+      <div className="mx-auto flex max-w-md flex-col items-center px-6 py-10 text-center">
       {isCard ? (
         <>
           <h1 className="text-2xl font-semibold">Pay with card</h1>
@@ -81,6 +85,7 @@ export default async function PaymentPage({
       )}
 
       <PaymentStatusPoller bookingId={bookingId} />
-    </div>
+      </div>
+    </>
   );
 }

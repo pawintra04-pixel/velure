@@ -14,12 +14,14 @@
 
   /* Dashboard sidebar — deliberately its own dark surface, not the page's
      ink/background tokens, so it reads as a distinct panel rather than a
-     plain top nav bar. Gray, not black — near-black read as another
-     well-known competitor's exact color, not just its layout. Reused as
-     `bg-sidebar` for every other "active/selected" dark pill in the app
-     (view tabs, date picker, chart tooltip) so there's one dark neutral,
-     not a gray sidebar next to black pills elsewhere. */
-  --sidebar: #52525b;
+     plain top nav bar. Back to near-black per later direction (an earlier
+     pass went gray over concern it read too close to a well-known
+     competitor's exact color, but the fuller redesign — pastel stat cards,
+     donut chart, white page background — differentiates enough on its
+     own). Reused as `bg-sidebar` for every other "active/selected" dark
+     pill in the app (view tabs, date picker, chart tooltip) so there's one
+     dark neutral, not a gray sidebar next to black pills elsewhere. */
+  --sidebar: #14171a;
   --sidebar-ink: #f4f5f3;
   --sidebar-ink-muted: rgba(244, 245, 243, 0.65);
   --sidebar-active: rgba(255, 255, 255, 0.14);

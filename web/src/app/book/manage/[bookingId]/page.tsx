@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { adminPool } from "@/db/client";
 import { formatBaht } from "@/lib/money";
 import { ManageBookingClient } from "./ManageBookingClient";
+import { BookingHeader } from "@/components/booking/BookingHeader";
 
 function hoursUntil(iso: string): number {
   return (new Date(iso).getTime() - Date.now()) / (60 * 60 * 1000);
@@ -29,7 +30,8 @@ export default async function ManageBookingPage({
   const { rows: [booking] } = await adminPool.query(
     `SELECT b.id, b.status, b.amount, b.start_time, b.service_id,
             s.name AS service_name, st.name AS staff_name,
-            biz.name AS business_name, biz.reschedule_cutoff_hours, biz.cancel_cutoff_hours
+            biz.name AS business_name, biz.slug AS business_slug,
+            biz.reschedule_cutoff_hours, biz.cancel_cutoff_hours
      FROM bookings b
      JOIN services s ON s.id = b.service_id
      JOIN staff st ON st.id = b.staff_id
@@ -46,50 +48,53 @@ export default async function ManageBookingPage({
   const canCancel = booking.status === "CONFIRMED" && hoursUntilStart >= booking.cancel_cutoff_hours;
 
   return (
-    <div className="mx-auto max-w-lg px-6 py-16">
-      <h1 className="text-2xl font-semibold">Manage your booking</h1>
-      <p className="mt-1 text-sm text-ink-secondary">{booking.business_name}</p>
+    <>
+      <BookingHeader businessName={booking.business_name} slug={booking.business_slug} />
+      <div className="mx-auto max-w-lg px-6 py-16">
+        <h1 className="text-2xl font-semibold">Manage your booking</h1>
+        <p className="mt-1 text-sm text-ink-secondary">{booking.business_name}</p>
 
-      <div className="mt-4 rounded-2xl border border-border bg-surface p-5 text-sm">
-        <div className="flex justify-between py-1">
-          <span className="text-ink-muted">Service</span>
-          <span>{booking.service_name}</span>
-        </div>
-        <div className="flex justify-between py-1">
-          <span className="text-ink-muted">Staff</span>
-          <span>{booking.staff_name}</span>
-        </div>
-        <div className="flex justify-between py-1">
-          <span className="text-ink-muted">Time</span>
-          <span>{formatTime(booking.start_time)}</span>
-        </div>
-        {booking.amount > 0 && (
+        <div className="mt-4 rounded-2xl border border-border bg-surface p-5 text-sm">
           <div className="flex justify-between py-1">
-            <span className="text-ink-muted">Amount</span>
-            <span>{formatBaht(booking.amount)}</span>
+            <span className="text-ink-muted">Service</span>
+            <span>{booking.service_name}</span>
           </div>
-        )}
-        <div className="flex justify-between py-1">
-          <span className="text-ink-muted">Status</span>
-          <span>{booking.status.replace("_", " ")}</span>
+          <div className="flex justify-between py-1">
+            <span className="text-ink-muted">Staff</span>
+            <span>{booking.staff_name}</span>
+          </div>
+          <div className="flex justify-between py-1">
+            <span className="text-ink-muted">Time</span>
+            <span>{formatTime(booking.start_time)}</span>
+          </div>
+          {booking.amount > 0 && (
+            <div className="flex justify-between py-1">
+              <span className="text-ink-muted">Amount</span>
+              <span>{formatBaht(booking.amount)}</span>
+            </div>
+          )}
+          <div className="flex justify-between py-1">
+            <span className="text-ink-muted">Status</span>
+            <span>{booking.status.replace("_", " ")}</span>
+          </div>
         </div>
-      </div>
 
-      {booking.status === "CONFIRMED" ? (
-        <ManageBookingClient
-          bookingId={bookingId}
-          serviceId={booking.service_id}
-          canReschedule={canReschedule}
-          canCancel={canCancel}
-          rescheduleCutoffHours={booking.reschedule_cutoff_hours}
-          cancelCutoffHours={booking.cancel_cutoff_hours}
-        />
-      ) : (
-        <p className="mt-4 text-sm text-ink-muted">
-          This booking is {booking.status.toLowerCase().replace("_", " ")} and can no longer be
-          changed here.
-        </p>
-      )}
-    </div>
+        {booking.status === "CONFIRMED" ? (
+          <ManageBookingClient
+            bookingId={bookingId}
+            serviceId={booking.service_id}
+            canReschedule={canReschedule}
+            canCancel={canCancel}
+            rescheduleCutoffHours={booking.reschedule_cutoff_hours}
+            cancelCutoffHours={booking.cancel_cutoff_hours}
+          />
+        ) : (
+          <p className="mt-4 text-sm text-ink-muted">
+            This booking is {booking.status.toLowerCase().replace("_", " ")} and can no longer be
+            changed here.
+          </p>
+        )}
+      </div>
+    </>
   );
 }

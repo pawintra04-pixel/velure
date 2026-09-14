@@ -39,7 +39,7 @@ export default async function ConfirmedPage({
         <h1 className="mt-4 text-2xl font-semibold">
           {booking.status === "CONFIRMED" ? "Booking confirmed" : `Status: ${booking.status}`}
         </h1>
-        <div className="mt-6 w-full rounded-2xl border border-border bg-surface p-5 text-left text-sm">
+        <div className="mt-6 w-full rounded-2xl border border-border bg-surface p-6 text-left text-sm">
           <div className="flex justify-between py-1">
             <span className="text-ink-muted">Service</span>
             <span>{booking.service_name}</span>

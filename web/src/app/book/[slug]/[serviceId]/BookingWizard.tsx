@@ -114,13 +114,13 @@ export function BookingWizard({
         {slots.length === 0 ? (
           <div className="mt-3 text-sm text-ink-muted">No available times on this day</div>
         ) : (
-          <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4">
+          <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
             {slots.map((s) => (
               <button
                 key={s.startTime}
                 onClick={() => reserve(s)}
                 disabled={isPending}
-                className={`rounded-xl border px-3 py-2 text-sm disabled:opacity-50 ${
+                className={`rounded-xl border px-3 py-2.5 text-sm disabled:opacity-50 ${
                   reservingSlot === s.startTime
                     ? "border-accent bg-accent/10 font-medium"
                     : "border-border text-ink-secondary"

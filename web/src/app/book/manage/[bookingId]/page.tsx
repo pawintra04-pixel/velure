@@ -56,7 +56,7 @@ export default async function ManageBookingPage({
         <h1 className="text-2xl font-semibold">Manage your booking</h1>
         <p className="mt-1 text-sm text-ink-secondary">{booking.business_name}</p>
 
-        <div className="mt-4 rounded-2xl border border-border bg-surface p-5 text-sm">
+        <div className="mt-4 rounded-2xl border border-border bg-surface p-6 text-sm">
           <div className="flex justify-between py-1">
             <span className="text-ink-muted">Service</span>
             <span>{booking.service_name}</span>

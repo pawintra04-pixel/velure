@@ -38,7 +38,7 @@ export default async function BookServicesPage({
           </div>
         )}
 
-        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {services.length === 0 && (
             <div className="text-sm text-ink-muted">No services available yet.</div>
           )}
@@ -54,7 +54,7 @@ export default async function BookServicesPage({
               ) : (
                 <div className="h-36 w-full bg-page" />
               )}
-              <div className="flex flex-1 flex-col justify-between p-5">
+              <div className="flex flex-1 flex-col justify-between p-6">
                 <div>
                   <div className="font-medium">{s.name}</div>
                   <div className="mt-1 text-sm text-ink-muted">{s.duration_minutes} min</div>

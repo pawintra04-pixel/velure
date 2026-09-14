@@ -53,7 +53,7 @@ export function ClassSessionPicker({
   }
 
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-6">
+    <div className="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-6">
       <div className="text-sm text-ink-secondary">Upcoming sessions</div>
       {sessions.length === 0 && (
         <div className="text-sm text-ink-muted">No upcoming sessions scheduled yet.</div>
@@ -64,18 +64,18 @@ export function ClassSessionPicker({
         return (
           <div
             key={s.id}
-            className="flex items-center justify-between rounded-xl border border-border px-4 py-3"
+            className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border px-5 py-4"
           >
             <div>
               <div className="text-sm font-medium">{formatSessionTime(s.start_time)}</div>
-              <div className="mt-0.5 text-xs text-ink-muted">
+              <div className="mt-1 text-xs text-ink-muted">
                 {s.staff_name} · {isFull ? "Full" : `${seatsLeft} of ${s.capacity} spots left`}
               </div>
             </div>
             <button
               onClick={() => reserve(s)}
               disabled={isFull || isPending}
-              className="rounded-xl border border-border px-3 py-2 text-sm disabled:opacity-50"
+              className="rounded-xl border border-border px-4 py-2.5 text-sm disabled:opacity-50"
             >
               {reservingId === s.id ? "Reserving..." : isFull ? "Full" : "Reserve a seat"}
             </button>

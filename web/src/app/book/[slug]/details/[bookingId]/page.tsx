@@ -81,7 +81,7 @@ export default async function BookingDetailsPage({
         </p>
 
         <div className="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
-          <div className="h-fit rounded-2xl border border-border bg-surface p-5 text-sm">
+          <div className="h-fit rounded-2xl border border-border bg-surface p-6 text-sm">
             <div className="flex justify-between py-1">
               <span className="text-ink-muted">Service</span>
               <span>{booking.service_name}</span>

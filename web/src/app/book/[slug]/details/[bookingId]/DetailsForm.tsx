@@ -64,22 +64,22 @@ export function DetailsForm({
   }
 
   return (
-    <div className="flex h-fit flex-col gap-3 rounded-2xl border border-border bg-surface p-5">
+    <div className="flex h-fit flex-col gap-4 rounded-2xl border border-border bg-surface p-6">
       <div className="text-sm text-ink-secondary">Your details</div>
       <input
-        className="rounded-lg border border-border px-3 py-2 text-sm"
+        className="rounded-lg border border-border px-3.5 py-2.5 text-sm"
         placeholder="Name"
         value={name}
         onChange={(e) => setName(e.target.value)}
       />
       <input
-        className="rounded-lg border border-border px-3 py-2 text-sm"
+        className="rounded-lg border border-border px-3.5 py-2.5 text-sm"
         placeholder="Phone number"
         value={phone}
         onChange={(e) => setPhone(e.target.value)}
       />
       <input
-        className="rounded-lg border border-border px-3 py-2 text-sm"
+        className="rounded-lg border border-border px-3.5 py-2.5 text-sm"
         placeholder="Email"
         type="email"
         value={email}
@@ -87,7 +87,7 @@ export function DetailsForm({
       />
 
       {customFields.length > 0 && (
-        <div className="flex flex-col gap-3 border-t border-border pt-3">
+        <div className="flex flex-col gap-4 border-t border-border pt-4">
           {customFields.map((f) => (
             <label key={f.id} className="text-sm text-ink-secondary">
               <span className="flex items-center gap-1.5">
@@ -100,7 +100,7 @@ export function DetailsForm({
                 )}
               </span>
               <input
-                className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
+                className="mt-1.5 w-full rounded-lg border border-border px-3.5 py-2.5 text-sm"
                 value={fieldValues[f.id] ?? ""}
                 onChange={(e) => setFieldValues((v) => ({ ...v, [f.id]: e.target.value }))}
               />
@@ -112,11 +112,11 @@ export function DetailsForm({
       {requiresPayment && (
         <div>
           <div className="text-sm text-ink-secondary">Pay with</div>
-          <div className="mt-2 flex gap-2">
+          <div className="mt-2.5 flex gap-2.5">
             <button
               type="button"
               onClick={() => setPaymentMethod("promptpay")}
-              className={`flex-1 rounded-xl border px-3 py-2 text-sm ${
+              className={`flex-1 rounded-xl border px-3 py-2.5 text-sm ${
                 paymentMethod === "promptpay"
                   ? "border-accent bg-accent/10 font-medium"
                   : "border-border text-ink-secondary"
@@ -127,7 +127,7 @@ export function DetailsForm({
             <button
               type="button"
               onClick={() => setPaymentMethod("card")}
-              className={`flex-1 rounded-xl border px-3 py-2 text-sm ${
+              className={`flex-1 rounded-xl border px-3 py-2.5 text-sm ${
                 paymentMethod === "card"
                   ? "border-accent bg-accent/10 font-medium"
                   : "border-border text-ink-secondary"
@@ -143,7 +143,7 @@ export function DetailsForm({
       <button
         onClick={submit}
         disabled={isPending || !name.trim() || !phone.trim() || !email.trim() || missingRequiredField}
-        className="rounded-xl bg-accent py-2.5 text-sm font-medium text-accent-ink disabled:opacity-50"
+        className="rounded-xl bg-accent py-3 text-sm font-medium text-accent-ink disabled:opacity-50"
       >
         {isPending ? "Processing..." : requiresPayment ? "Continue to payment" : "Confirm booking"}
       </button>

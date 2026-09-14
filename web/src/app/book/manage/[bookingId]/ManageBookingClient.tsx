@@ -128,7 +128,7 @@ export function ManageBookingClient({
       )}
 
       {showReschedule && (
-        <div className="rounded-2xl border border-border bg-surface p-5">
+        <div className="rounded-2xl border border-border bg-surface p-6">
           <div className="flex gap-2 overflow-x-auto pb-1">
             {days.map((d) => (
               <button
@@ -142,17 +142,17 @@ export function ManageBookingClient({
               </button>
             ))}
           </div>
-          <div className="mt-3">
+          <div className="mt-4">
             {slots.length === 0 ? (
               <div className="text-sm text-ink-muted">No available times on this day</div>
             ) : (
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-3 gap-2.5">
                 {slots.map((s) => (
                   <button
                     key={s.startTime}
                     disabled={isPending}
                     onClick={() => pickSlot(s)}
-                    className="rounded-xl border border-border px-3 py-2 text-sm text-ink-secondary disabled:opacity-50"
+                    className="rounded-xl border border-border px-3 py-2.5 text-sm text-ink-secondary disabled:opacity-50"
                   >
                     {formatSlotTime(s.startTime)}
                   </button>

@@ -294,6 +294,15 @@ restrained pastel tint per metric (`StatCard`'s `tone` prop, tokens in
 status donut (`BookingStatusDonut.tsx`) uses the reserved status colors
 (good/warning/critical), not the tint palette, since it encodes state.
 
+The customer-facing `/book/*` flow uses a wider two-column desktop layout
+(see the "App structure" section above) plus a spacing pass — larger card
+padding (p-6), wider gaps between fields/buttons, and fewer, bigger
+columns in the time-slot grids on narrow screens (2 columns on phones
+instead of 3-4) — after feedback that it read as cramped on a full
+monitor. **Not yet visually verified** — done as a code-level pass while
+the browser extension was disconnected this session; worth a real look on
+both a phone-width and desktop viewport before considering it settled.
+
 ## What exists vs. doesn't yet
 
 Done: full MVP data model, RLS, booking-overlap prevention, real

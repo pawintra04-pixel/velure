@@ -58,8 +58,8 @@ export async function getMonthlyRevenue(businessId: string): Promise<MonthlyReve
     );
 
     const monthLabels = [
-      "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
-      "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค.",
+      "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+      "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
     ];
     const currentMonth = new Date().getMonth();
 

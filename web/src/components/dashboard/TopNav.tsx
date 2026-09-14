@@ -1,4 +1,4 @@
-const NAV_ITEMS = ["ภาพรวม", "นัดหมาย", "บริการ", "ทีมงาน", "ลูกค้า"];
+const NAV_ITEMS = ["Overview", "Bookings", "Services", "Team", "Customers"];
 
 export function TopNav() {
   return (

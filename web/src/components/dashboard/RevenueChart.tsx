@@ -15,7 +15,7 @@ export function RevenueChart({ data }: { data: MonthlyRevenuePoint[] }) {
     <div className="rounded-2xl border border-border bg-surface p-5">
       <div className="flex items-baseline justify-between">
         <div>
-          <div className="text-sm text-ink-secondary">รายได้รายเดือน</div>
+          <div className="text-sm text-ink-secondary">Monthly revenue</div>
           <div className="mt-1 text-2xl font-semibold">
             {active ? formatBaht(active.totalSatang) : "฿0"}
             <span className="ml-2 text-sm font-normal text-ink-muted">

@@ -1,6 +1,11 @@
 import { adminPool } from "./client";
 
 const DEMO_BUSINESS_NAME = "Velure Demo Spa";
+// From spikes/stripe-connect-promptpay — a real Stripe TEST-mode Standard
+// connected account, created once by hand (Connect onboarding needs a
+// human to click through it). Re-seeding must not lose this, or the
+// booking flow's payment step breaks until someone re-attaches it.
+const DEMO_STRIPE_ACCOUNT_ID = "acct_1UFRhRECGTB3Jt92";
 
 // Idempotent: wipes any previous run's demo tree first, so `npm run db:seed`
 // is safe to re-run as the schema/seed data evolves during development.
@@ -23,25 +28,25 @@ async function main() {
   await wipeExistingDemoData();
 
   const { rows: [business] } = await adminPool.query(
-    `INSERT INTO businesses (name, timezone) VALUES ($1, $2) RETURNING id`,
-    [DEMO_BUSINESS_NAME, "Asia/Bangkok"]
+    `INSERT INTO businesses (name, timezone, stripe_account_id) VALUES ($1, $2, $3) RETURNING id`,
+    [DEMO_BUSINESS_NAME, "Asia/Bangkok", DEMO_STRIPE_ACCOUNT_ID]
   );
   const businessId = business.id;
 
   const { rows: [staffMember] } = await adminPool.query(
     `INSERT INTO staff (business_id, name) VALUES ($1, $2) RETURNING id`,
-    [businessId, "หมอนวดสมชาย"]
+    [businessId, "Somchai (Massage Therapist)"]
   );
 
   const { rows: [room] } = await adminPool.query(
     `INSERT INTO resources (business_id, name) VALUES ($1, $2) RETURNING id`,
-    [businessId, "ห้องนวด 1"]
+    [businessId, "Treatment Room 1"]
   );
 
   const { rows: [service] } = await adminPool.query(
     `INSERT INTO services (business_id, name, duration_minutes, buffer_minutes, price_amount, payment_mode)
      VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-    [businessId, "นวดไทย 60 นาที", 60, 15, 50000, "full"]
+    [businessId, "Thai Massage (60 min)", 60, 15, 50000, "full"]
   );
 
   await adminPool.query(
@@ -50,8 +55,8 @@ async function main() {
   );
 
   const { rows: [customer] } = await adminPool.query(
-    `INSERT INTO customers (business_id, name, phone) VALUES ($1, $2, $3) RETURNING id`,
-    [businessId, "คุณสมศรี", "0812345678"]
+    `INSERT INTO customers (business_id, name, phone, email) VALUES ($1, $2, $3, $4) RETURNING id`,
+    [businessId, "Somsri", "0812345678", "somsri@example.com"]
   );
 
   // Past months this year, all settled — gives the dashboard's revenue chart

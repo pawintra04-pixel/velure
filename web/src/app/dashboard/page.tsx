@@ -11,6 +11,14 @@ import { RevenueChart } from "@/components/dashboard/RevenueChart";
 import { UpcomingBookings } from "@/components/dashboard/UpcomingBookings";
 import { QuickActions } from "@/components/dashboard/QuickActions";
 
+function greeting(): string {
+  const hour = new Date().toLocaleString("en-US", { timeZone: "Asia/Bangkok", hour: "numeric", hour12: false });
+  const h = parseInt(hour, 10);
+  if (h < 12) return "Good morning";
+  if (h < 18) return "Good afternoon";
+  return "Good evening";
+}
+
 export default async function DashboardPage() {
   // STUB: real auth doesn't exist yet, so this reads the seeded demo
   // business instead of the signed-in owner's. See src/lib/demo-business.ts.
@@ -26,23 +34,23 @@ export default async function DashboardPage() {
     <div className="min-h-screen">
       <TopNav />
       <main className="mx-auto max-w-6xl px-6 py-8">
-        <h1 className="text-2xl font-semibold">สวัสดีตอนเช้า 👋</h1>
+        <h1 className="text-2xl font-semibold">{greeting()}</h1>
         <p className="mt-1 text-sm text-ink-secondary">
-          ภาพรวมร้านของคุณวันนี้
+          Here&apos;s how your shop is doing today
         </p>
 
         <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <StatCard label="นัดหมายวันนี้" value={String(stats.todayBookings)} />
+          <StatCard label="Today's bookings" value={String(stats.todayBookings)} />
           <StatCard
-            label="รายได้เดือนนี้"
+            label="Revenue this month"
             value={formatBaht(stats.monthRevenueSatang)}
           />
           <StatCard
-            label="รอชำระเงิน"
+            label="Pending payment"
             value={String(stats.pendingPayment)}
-            hint="นัดที่ยังไม่ยืนยัน"
+            hint="Not yet confirmed"
           />
-          <StatCard label="ลูกค้าทั้งหมด" value={String(stats.totalCustomers)} />
+          <StatCard label="Total customers" value={String(stats.totalCustomers)} />
         </div>
 
         <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">

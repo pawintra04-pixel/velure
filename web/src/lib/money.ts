@@ -6,5 +6,5 @@ export function satangToBaht(satang: number): number {
 }
 
 export function formatBaht(satang: number): string {
-  return `฿${satangToBaht(satang).toLocaleString("th-TH", { maximumFractionDigits: 0 })}`;
+  return `฿${satangToBaht(satang).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 }

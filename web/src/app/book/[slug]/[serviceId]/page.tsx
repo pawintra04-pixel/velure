@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getDemoBusinessId } from "@/lib/demo-business";
+import { getBusinessBySlug } from "@/lib/business";
 import { withBusinessContext } from "@/db/client";
 import { getAvailableSlots } from "@/lib/availability";
 import { BookingWizard } from "./BookingWizard";
@@ -11,10 +11,12 @@ function todayISOInBangkok(): string {
 export default async function ServiceBookingPage({
   params,
 }: {
-  params: Promise<{ serviceId: string }>;
+  params: Promise<{ slug: string; serviceId: string }>;
 }) {
-  const { serviceId } = await params;
-  const businessId = await getDemoBusinessId();
+  const { slug, serviceId } = await params;
+  const business = await getBusinessBySlug(slug);
+  if (!business) notFound();
+  const businessId = business.id;
 
   const service = await withBusinessContext(businessId, async (c) => {
     const { rows: [row] } = await c.query(

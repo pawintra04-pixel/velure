@@ -1,4 +1,5 @@
-import { getDemoBusinessId } from "@/lib/demo-business";
+import { requireOwner } from "@/lib/auth";
+import { withBusinessContext } from "@/db/client";
 import {
   getStatTiles,
   getMonthlyRevenue,
@@ -20,11 +21,16 @@ function greeting(): string {
 }
 
 export default async function DashboardPage() {
-  // STUB: real auth doesn't exist yet, so this reads the seeded demo
-  // business instead of the signed-in owner's. See src/lib/demo-business.ts.
-  const businessId = await getDemoBusinessId();
+  const owner = await requireOwner();
+  const businessId = owner.businessId;
 
-  const [stats, revenue, upcoming] = await Promise.all([
+  const [business, stats, revenue, upcoming] = await Promise.all([
+    withBusinessContext(businessId, async (c) => {
+      const { rows: [row] } = await c.query(`SELECT name, slug FROM businesses WHERE id = $1`, [
+        businessId,
+      ]);
+      return row;
+    }),
     getStatTiles(businessId),
     getMonthlyRevenue(businessId),
     getUpcomingBookings(businessId),
@@ -32,11 +38,14 @@ export default async function DashboardPage() {
 
   return (
     <div className="min-h-screen">
-      <TopNav />
+      <TopNav ownerEmail={owner.email} />
       <main className="mx-auto max-w-6xl px-6 py-8">
         <h1 className="text-2xl font-semibold">{greeting()}</h1>
         <p className="mt-1 text-sm text-ink-secondary">
-          Here&apos;s how your shop is doing today
+          Here&apos;s how {business.name} is doing today ·{" "}
+          <a href={`/book/${business.slug}`} target="_blank" className="text-accent underline">
+            View your booking page
+          </a>
         </p>
 
         <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">

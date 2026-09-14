@@ -18,14 +18,15 @@ async function main() {
   const businessAId = businessA.id;
 
   const { rows: [businessB] } = await adminPool.query(
-    `INSERT INTO businesses (name) VALUES ('Other Shop (isolation test)') RETURNING id`
+    `INSERT INTO businesses (name, slug) VALUES ('Other Shop (isolation test)', 'isolation-test-' || gen_random_uuid()) RETURNING id`
   );
   const businessBId = businessB.id;
   // Everything from here runs inside try/finally: an earlier version of this
   // script let a mid-run failure skip cleanup entirely, leaving this row
-  // behind to silently become "the oldest business" for anything (like the
-  // dashboard's temporary getDemoBusinessId() stub) that queries businesses
-  // ordered by created_at. Cost a real debugging session — see git history.
+  // behind to silently become "the oldest business" for anything that
+  // queried businesses ordered by created_at (this used to include a
+  // temporary demo-business stub, since removed now that real auth exists).
+  // Cost a real debugging session — see git history.
   let start = "";
   try {
 

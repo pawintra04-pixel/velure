@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { fetchSlots, createHold } from "../actions";
+import { fetchSlots, createHold } from "../../actions";
 import type { Slot } from "@/lib/availability";
 
 function nextDays(n: number): { iso: string; label: string }[] {

@@ -1,11 +1,15 @@
 import { adminPool } from "./client";
+import { hashPassword } from "../lib/auth";
 
 const DEMO_BUSINESS_NAME = "Velure Demo Spa";
+const DEMO_SLUG = "velure-demo-spa";
 // From spikes/stripe-connect-promptpay — a real Stripe TEST-mode Standard
 // connected account, created once by hand (Connect onboarding needs a
 // human to click through it). Re-seeding must not lose this, or the
 // booking flow's payment step breaks until someone re-attaches it.
 const DEMO_STRIPE_ACCOUNT_ID = "acct_1UFRhRECGTB3Jt92";
+const DEMO_OWNER_EMAIL = "demo@velure.app";
+const DEMO_OWNER_PASSWORD = "password123"; // dev-only demo credentials, see README
 
 // Idempotent: wipes any previous run's demo tree first, so `npm run db:seed`
 // is safe to re-run as the schema/seed data evolves during development.
@@ -14,6 +18,11 @@ async function wipeExistingDemoData() {
     DEMO_BUSINESS_NAME,
   ]);
   for (const { id: businessId } of rows) {
+    await adminPool.query(
+      `DELETE FROM sessions WHERE owner_id IN (SELECT id FROM owners WHERE business_id = $1)`,
+      [businessId]
+    );
+    await adminPool.query(`DELETE FROM owners WHERE business_id = $1`, [businessId]);
     await adminPool.query(`DELETE FROM bookings WHERE business_id = $1`, [businessId]);
     await adminPool.query(`DELETE FROM staff_services WHERE business_id = $1`, [businessId]);
     await adminPool.query(`DELETE FROM customers WHERE business_id = $1`, [businessId]);
@@ -28,10 +37,16 @@ async function main() {
   await wipeExistingDemoData();
 
   const { rows: [business] } = await adminPool.query(
-    `INSERT INTO businesses (name, timezone, stripe_account_id) VALUES ($1, $2, $3) RETURNING id`,
-    [DEMO_BUSINESS_NAME, "Asia/Bangkok", DEMO_STRIPE_ACCOUNT_ID]
+    `INSERT INTO businesses (name, slug, timezone, stripe_account_id) VALUES ($1, $2, $3, $4) RETURNING id`,
+    [DEMO_BUSINESS_NAME, DEMO_SLUG, "Asia/Bangkok", DEMO_STRIPE_ACCOUNT_ID]
   );
   const businessId = business.id;
+
+  const passwordHash = await hashPassword(DEMO_OWNER_PASSWORD);
+  const { rows: [owner] } = await adminPool.query(
+    `INSERT INTO owners (business_id, email, password_hash) VALUES ($1, $2, $3) RETURNING id`,
+    [businessId, DEMO_OWNER_EMAIL, passwordHash]
+  );
 
   const { rows: [staffMember] } = await adminPool.query(
     `INSERT INTO staff (business_id, name) VALUES ($1, $2) RETURNING id`,
@@ -104,6 +119,10 @@ async function main() {
   console.log("Seeded demo business:");
   console.log({
     businessId,
+    ownerId: owner.id,
+    ownerEmail: DEMO_OWNER_EMAIL,
+    ownerPassword: DEMO_OWNER_PASSWORD,
+    bookingUrl: `/book/${DEMO_SLUG}`,
     staffId: staffMember.id,
     resourceId: room.id,
     serviceId: service.id,

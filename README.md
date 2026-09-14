@@ -15,4 +15,6 @@ https://claude.ai/code/artifact/601eb6be-4b9a-49f6-8a4f-a4017221b075
 
 ## สถานะ
 
-วางแผนสถาปัตยกรรมเสร็จแล้ว ยังไม่เริ่ม scaffold โค้ด
+Phase 0 (4 proof spikes) ผ่านครบแล้ว — ดู `spikes/*/RESULT.md`
+
+เริ่ม scaffold แอปจริงแล้วที่ `web/` (Next.js + Postgres) — DB schema เต็มรูปแบบตาม MVP scope, RLS, กันคิวชน (ทั้ง staff และ resource) ทำงานแล้วและมี smoke test ยืนยัน ยังไม่มี UI/API routes สำหรับ 6 engines

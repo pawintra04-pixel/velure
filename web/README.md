@@ -299,9 +299,18 @@ The customer-facing `/book/*` flow uses a wider two-column desktop layout
 padding (p-6), wider gaps between fields/buttons, and fewer, bigger
 columns in the time-slot grids on narrow screens (2 columns on phones
 instead of 3-4) — after feedback that it read as cramped on a full
-monitor. **Not yet visually verified** — done as a code-level pass while
-the browser extension was disconnected this session; worth a real look on
-both a phone-width and desktop viewport before considering it settled.
+monitor. Verified live at both 390px and 1440px, including the class
+session picker and details form.
+
+The owner dashboard is responsive too: below `lg`, `Sidebar.tsx` collapses
+from the always-visible 224px rail to a slim top bar with a hamburger
+button opening a slide-over drawer with the same nav — the fixed rail ate
+close to half the screen on a phone otherwise, and most owners running a
+small shop will manage it from one. Card/row layouts on Services, Team,
+and Classes that used an unconstrained `flex justify-between` (fine on
+desktop, but let the left content push the right side into a cramped
+sliver on a narrow screen) now stack vertically below `sm`. Verified live
+at 390px: drawer opens/closes/navigates, cards stack cleanly.
 
 ## What exists vs. doesn't yet
 
@@ -342,7 +351,7 @@ services); an owner can't cancel a whole class session that has existing
 attendee bookings (must cancel each attendee first, same restriction as
 deleting a service/staff member with bookings); a class's capacity can
 only be set at creation, not edited afterward. The class-scheduling and
-session-picker UI is implemented and its booking/capacity logic verified
-directly against the database, but not yet exercised through the actual
-browser UI (extension was disconnected mid-session) — worth a manual
-click-through before relying on it.
+session-picker UI has since been click-tested live (both desktop and
+390px mobile) on top of the earlier direct-database verification —
+reserved a seat through the actual customer flow and confirmed it landed
+on the same details page a 1:1 booking would.

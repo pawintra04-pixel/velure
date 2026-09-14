@@ -67,6 +67,12 @@ business has no `stripe_account_id` yet — there's no UI to connect one
 (that's Business Setup, not built), so its booking flow will fail at the
 payment step until one is attached by hand, same as the demo was.
 
+Card payments also need `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` in `.env.local`
+(the `pk_test_...` key — safe to be public, it's meant for the browser).
+Card checkout uses Stripe Elements (`CardPaymentForm.tsx`) rather than the
+server-confirmed flow PromptPay uses, since a card needs the customer to
+actually enter details (and possibly complete 3D Secure) client-side.
+
 ## Database
 
 - `src/db/migrations/*.sql` — applied in filename order, tracked in
@@ -156,20 +162,33 @@ payment step until one is attached by hand, same as the demo was.
   not something to hide until its date arrives (this was a real bug caught
   by comparing the two: first version cut "this month" off at today+1).
 
+## Design system
+
+Dashboard uses a dark left sidebar (`src/components/dashboard/Sidebar.tsx`)
+rather than a top nav bar — a deliberate choice made after early feedback
+that a black-pill-on-white top nav read too close to a well-known
+competitor's exact look. Page background is white; stat cards carry a
+restrained pastel tint per metric (`StatCard`'s `tone` prop, tokens in
+`globals.css`: `--tint-{green,amber,blue,pink}-{bg,ink}`), and the booking
+status donut (`BookingStatusDonut.tsx`) uses the reserved status colors
+(good/warning/critical), not the tint palette, since it encodes state.
+
 ## What exists vs. doesn't yet
 
 Done: full MVP data model, RLS, booking-overlap prevention, real
 per-business auth (signup creates an isolated business + owner + public
 booking slug immediately — verified live with two separate accounts, zero
-data bleed between them), an owner dashboard on real data, the full
-booking → hold → PromptPay payment → webhook → confirmed loop working end
-to end in the real app, and owner-side management: services, staff,
-a full calendar (list/day/week/month) with status actions, and reports
-with CSV export + print.
+data bleed between them), an owner dashboard on real data (incl. a booking
+status donut), the full booking → hold → payment (PromptPay **or** card) →
+webhook → confirmed loop working end to end in the real app, and
+owner-side management: services, staff, a full calendar (list/day/week/
+month) with status actions, and reports with CSV export + print.
 
 Not started: customers CRUD UI (only `db/seed.ts` can create these), AI
-onboarding, embed widget, notifications, card payments (only PromptPay is
-wired up), reschedule (cancel/complete/no-show exist, not reschedule),
-refunds, connecting a Stripe account for a newly signed-up business (no UI
-for it yet), staff-hours/working-hours management (still the hardcoded
-09:00–19:00 stub in `availability.ts`).
+onboarding, embed widget, notifications, reschedule (cancel/complete/
+no-show exist, not reschedule), refunds, connecting a Stripe account for a
+newly signed-up business (no UI for it yet), staff-hours/working-hours
+management (still the hardcoded 09:00–19:00 stub in `availability.ts`), a
+"reserve now, fill in details after" quick-booking flow (explicitly
+requested, not yet built — current flow collects contact details before
+creating the hold).

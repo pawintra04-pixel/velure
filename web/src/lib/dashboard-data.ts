@@ -70,6 +70,22 @@ export async function getMonthlyRevenue(businessId: string): Promise<MonthlyReve
   });
 }
 
+export type BookingStatusBreakdown = { confirmed: number; pending: number; cancelled: number };
+
+export async function getBookingStatusBreakdown(businessId: string): Promise<BookingStatusBreakdown> {
+  return withBusinessContext(businessId, async (c) => {
+    const { rows: [row] } = await c.query(
+      `SELECT
+         count(*) FILTER (WHERE status IN ('CONFIRMED', 'COMPLETED'))::int AS confirmed,
+         count(*) FILTER (WHERE status IN ('TEMPORARY_HOLD', 'PAYMENT_PENDING'))::int AS pending,
+         count(*) FILTER (WHERE status IN ('CANCELLED', 'NO_SHOW', 'PAYMENT_FAILED', 'EXPIRED'))::int AS cancelled
+       FROM bookings
+       WHERE date_trunc('month', start_time) = date_trunc('month', now())`
+    );
+    return { confirmed: row.confirmed, pending: row.pending, cancelled: row.cancelled };
+  });
+}
+
 export type UpcomingBooking = {
   id: string;
   startTime: string;

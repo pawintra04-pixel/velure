@@ -1,7 +1,6 @@
 import { requireOwner } from "@/lib/auth";
 import { withBusinessContext } from "@/db/client";
 import { formatBaht } from "@/lib/money";
-import { TopNav } from "@/components/dashboard/TopNav";
 import { AddServiceForm } from "./AddServiceForm";
 import { deleteService } from "./actions";
 
@@ -17,9 +16,7 @@ export default async function ServicesPage() {
   });
 
   return (
-    <div className="min-h-screen">
-      <TopNav ownerEmail={owner.email} />
-      <main className="mx-auto max-w-3xl px-6 py-8">
+    <div className="mx-auto max-w-3xl px-6 py-8">
         <h1 className="text-2xl font-semibold">Services</h1>
         <p className="mt-1 text-sm text-ink-secondary">
           What customers can book on your public booking page.
@@ -74,7 +71,6 @@ export default async function ServicesPage() {
           <h2 className="text-sm font-medium text-ink-secondary">Add a service</h2>
           <AddServiceForm />
         </div>
-      </main>
     </div>
   );
 }

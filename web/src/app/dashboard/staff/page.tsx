@@ -1,6 +1,5 @@
 import { requireOwner } from "@/lib/auth";
 import { withBusinessContext } from "@/db/client";
-import { TopNav } from "@/components/dashboard/TopNav";
 import { AddStaffForm } from "./AddStaffForm";
 import { deleteStaff } from "./actions";
 
@@ -22,9 +21,7 @@ export default async function StaffPage() {
   });
 
   return (
-    <div className="min-h-screen">
-      <TopNav ownerEmail={owner.email} />
-      <main className="mx-auto max-w-3xl px-6 py-8">
+    <div className="mx-auto max-w-3xl px-6 py-8">
         <h1 className="text-2xl font-semibold">Team</h1>
         <p className="mt-1 text-sm text-ink-secondary">
           Staff who can be booked for your services.
@@ -64,7 +61,6 @@ export default async function StaffPage() {
           <h2 className="text-sm font-medium text-ink-secondary">Add a team member</h2>
           <AddStaffForm services={services} />
         </div>
-      </main>
     </div>
   );
 }

@@ -7,7 +7,6 @@ import {
   startOfWeek,
   startOfMonth,
 } from "@/lib/bookings-data";
-import { TopNav } from "@/components/dashboard/TopNav";
 import { ViewTabs } from "./ViewTabs";
 import { BookingRow } from "./BookingRow";
 import { DayView } from "./DayView";
@@ -27,9 +26,7 @@ export default async function BookingsPage({
   const { view = "list", date = todayISOInBangkok() } = await searchParams;
 
   return (
-    <div className="min-h-screen">
-      <TopNav ownerEmail={owner.email} />
-      <main className="mx-auto max-w-5xl px-6 py-8">
+    <div className="mx-auto max-w-5xl px-6 py-8">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-semibold">Bookings</h1>
@@ -78,7 +75,6 @@ export default async function BookingsPage({
             <ListView businessId={owner.businessId} today={todayISOInBangkok()} />
           )}
         </div>
-      </main>
     </div>
   );
 }

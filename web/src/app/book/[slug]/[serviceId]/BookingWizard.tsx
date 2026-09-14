@@ -35,11 +35,13 @@ export function BookingWizard({
   serviceId,
   initialDate,
   initialSlots,
+  paymentMode,
 }: {
   businessId: string;
   serviceId: string;
   initialDate: string;
   initialSlots: Slot[];
+  paymentMode: string;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -51,7 +53,9 @@ export function BookingWizard({
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<"promptpay" | "card">("promptpay");
   const [error, setError] = useState<string | null>(null);
+  const requiresPayment = paymentMode !== "free";
 
   function selectDate(dateISO: string) {
     setSelectedDate(dateISO);
@@ -75,6 +79,7 @@ export function BookingWizard({
         customerName: name,
         customerPhone: phone,
         customerEmail: email,
+        paymentMethod,
       });
 
       if (!result.ok) {
@@ -156,6 +161,37 @@ export function BookingWizard({
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
+
+          {requiresPayment && (
+            <div>
+              <div className="text-sm text-ink-secondary">Pay with</div>
+              <div className="mt-2 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod("promptpay")}
+                  className={`flex-1 rounded-xl border px-3 py-2 text-sm ${
+                    paymentMethod === "promptpay"
+                      ? "border-accent bg-accent/10 font-medium"
+                      : "border-border text-ink-secondary"
+                  }`}
+                >
+                  PromptPay
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod("card")}
+                  className={`flex-1 rounded-xl border px-3 py-2 text-sm ${
+                    paymentMethod === "card"
+                      ? "border-accent bg-accent/10 font-medium"
+                      : "border-border text-ink-secondary"
+                  }`}
+                >
+                  Card
+                </button>
+              </div>
+            </div>
+          )}
+
           {error && <div className="text-sm text-[#d03b3b]">{error}</div>}
           <button
             onClick={submit}

@@ -3,7 +3,6 @@ import { requireOwner } from "@/lib/auth";
 import { getReportData, resolveReportRange, type ReportRangeKey } from "@/lib/reports-data";
 import { todayISOInBangkok } from "@/lib/bookings-data";
 import { formatBaht } from "@/lib/money";
-import { TopNav } from "@/components/dashboard/TopNav";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { PrintButton } from "./PrintButton";
 
@@ -29,9 +28,7 @@ export default async function ReportsPage({
   const report = await getReportData(owner.businessId, startISO, endISO);
 
   return (
-    <div className="min-h-screen">
-      <TopNav ownerEmail={owner.email} />
-      <main className="mx-auto max-w-4xl px-6 py-8 print:max-w-none">
+    <div className="mx-auto max-w-4xl px-6 py-8 print:max-w-none">
         <div className="flex items-center justify-between print:hidden">
           <div>
             <h1 className="text-2xl font-semibold">Reports</h1>
@@ -65,13 +62,14 @@ export default async function ReportsPage({
         </div>
 
         <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <StatCard label="Settled bookings" value={String(report.overview.settledBookings)} />
-          <StatCard label="Revenue" value={formatBaht(report.overview.totalRevenue)} />
-          <StatCard label="Avg. booking value" value={formatBaht(report.overview.avgBookingValue)} />
+          <StatCard label="Settled bookings" value={String(report.overview.settledBookings)} tone="green" />
+          <StatCard label="Revenue" value={formatBaht(report.overview.totalRevenue)} tone="blue" />
+          <StatCard label="Avg. booking value" value={formatBaht(report.overview.avgBookingValue)} tone="pink" />
           <StatCard
             label="Cancellation rate"
             value={`${Math.round(report.overview.cancellationRate * 100)}%`}
             hint={`${report.overview.cancelledCount} cancelled · ${report.overview.noShowCount} no-show`}
+            tone="amber"
           />
         </div>
 
@@ -79,7 +77,6 @@ export default async function ReportsPage({
           <BreakdownTable title="By team member" rows={report.byStaff} />
           <BreakdownTable title="By service" rows={report.byService} />
         </div>
-      </main>
     </div>
   );
 }

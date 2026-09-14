@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --page: #f9f9f7;
-  --surface: #fcfcfb;
+  --page: #ffffff;
+  --surface: #ffffff;
   --ink: #0b0b0b;
   --ink-secondary: #52514e;
   --ink-muted: #898781;
@@ -11,6 +11,26 @@
   --accent: #1baf7a;
   --accent-ink: #ffffff;
   --success: #0ca30c;
+
+  /* Dashboard sidebar — deliberately its own dark surface, not the page's
+     ink/background tokens, so it reads as a distinct panel rather than a
+     plain top nav bar (a top black-pill nav on white read too close to a
+     well-known competitor's look). */
+  --sidebar: #14171a;
+  --sidebar-ink: #f4f5f3;
+  --sidebar-ink-muted: rgba(244, 245, 243, 0.55);
+  --sidebar-active: rgba(255, 255, 255, 0.1);
+
+  /* Restrained accent chips for stat cards — soft pastel tints, not
+     saturated blocks, so the page still reads mostly white/quiet. */
+  --tint-green-bg: #eaf7f1;
+  --tint-green-ink: #1a8f61;
+  --tint-amber-bg: #fdf3e6;
+  --tint-amber-ink: #a8681c;
+  --tint-blue-bg: #eaf1fb;
+  --tint-blue-ink: #3462ad;
+  --tint-pink-bg: #fbeef2;
+  --tint-pink-ink: #b34a6b;
 }
 
 @theme inline {
@@ -24,6 +44,10 @@
   --color-accent: var(--accent);
   --color-accent-ink: var(--accent-ink);
   --color-success: var(--success);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-ink: var(--sidebar-ink);
+  --color-sidebar-ink-muted: var(--sidebar-ink-muted);
+  --color-sidebar-active: var(--sidebar-active);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }

@@ -24,9 +24,18 @@ export async function createHold(input: {
   customerName: string;
   customerPhone: string;
   customerEmail: string;
+  paymentMethod: "promptpay" | "card";
 }): Promise<CreateHoldResult> {
-  const { businessId, serviceId, startTime, endTime, customerName, customerPhone, customerEmail } =
-    input;
+  const {
+    businessId,
+    serviceId,
+    startTime,
+    endTime,
+    customerName,
+    customerPhone,
+    customerEmail,
+    paymentMethod,
+  } = input;
 
   if (!customerName.trim() || !customerPhone.trim() || !customerEmail.trim()) {
     return { ok: false, reason: "invalid_input" };
@@ -119,30 +128,51 @@ export async function createHold(input: {
   }
 
   try {
-    const paymentMethod = await stripe.paymentMethods.create(
-      {
-        type: "promptpay",
-        billing_details: { name: customerName.trim(), email: customerEmail.trim() },
-      },
-      { stripeAccount: setup.stripeAccountId }
-    );
+    let paymentIntentId: string;
 
-    const paymentIntent = await stripe.paymentIntents.create(
-      {
-        amount: setup.amount,
-        currency: "thb",
-        payment_method_types: ["promptpay"],
-        payment_method: paymentMethod.id,
-        confirm: true,
-        metadata: { booking_id: setup.bookingId },
-      },
-      { stripeAccount: setup.stripeAccountId }
-    );
+    if (paymentMethod === "card") {
+      // No pre-attached PaymentMethod and no confirm:true here — cards need
+      // the customer to actually enter details (and possibly complete 3D
+      // Secure) client-side via Stripe Elements on the payment page, unlike
+      // PromptPay which Stripe can confirm immediately server-side into a
+      // QR the customer scans.
+      const paymentIntent = await stripe.paymentIntents.create(
+        {
+          amount: setup.amount,
+          currency: "thb",
+          payment_method_types: ["card"],
+          metadata: { booking_id: setup.bookingId },
+        },
+        { stripeAccount: setup.stripeAccountId }
+      );
+      paymentIntentId = paymentIntent.id;
+    } else {
+      const stripePaymentMethod = await stripe.paymentMethods.create(
+        {
+          type: "promptpay",
+          billing_details: { name: customerName.trim(), email: customerEmail.trim() },
+        },
+        { stripeAccount: setup.stripeAccountId }
+      );
+
+      const paymentIntent = await stripe.paymentIntents.create(
+        {
+          amount: setup.amount,
+          currency: "thb",
+          payment_method_types: ["promptpay"],
+          payment_method: stripePaymentMethod.id,
+          confirm: true,
+          metadata: { booking_id: setup.bookingId },
+        },
+        { stripeAccount: setup.stripeAccountId }
+      );
+      paymentIntentId = paymentIntent.id;
+    }
 
     await withBusinessContext(businessId, (c) =>
       c.query(
         `UPDATE bookings SET stripe_payment_intent_id = $1, status = 'PAYMENT_PENDING' WHERE id = $2`,
-        [paymentIntent.id, setup.bookingId]
+        [paymentIntentId, setup.bookingId]
       )
     );
   } catch (err) {

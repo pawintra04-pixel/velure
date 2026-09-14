@@ -42,6 +42,7 @@ export default async function ServiceBookingPage({
         serviceId={serviceId}
         initialDate={today}
         initialSlots={initialSlots}
+        paymentMode={service.payment_mode}
       />
     </div>
   );

@@ -53,7 +53,7 @@ export default async function ReportsPage({
               key={r.key}
               href={`/dashboard/reports?range=${r.key}`}
               className={`rounded-full px-4 py-1.5 text-sm ${
-                rangeKey === r.key ? "bg-ink text-white" : "border border-border text-ink-secondary hover:bg-page"
+                rangeKey === r.key ? "bg-sidebar text-white" : "border border-border text-ink-secondary hover:bg-page"
               }`}
             >
               {r.label}

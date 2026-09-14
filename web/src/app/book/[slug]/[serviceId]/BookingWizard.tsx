@@ -108,7 +108,7 @@ export function BookingWizard({
             key={d.iso}
             onClick={() => selectDate(d.iso)}
             className={`shrink-0 rounded-full px-4 py-2 text-sm ${
-              d.iso === selectedDate ? "bg-ink text-white" : "border border-border text-ink-secondary"
+              d.iso === selectedDate ? "bg-sidebar text-white" : "border border-border text-ink-secondary"
             }`}
           >
             {d.label}

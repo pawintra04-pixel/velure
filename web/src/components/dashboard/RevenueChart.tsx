@@ -37,7 +37,7 @@ export function RevenueChart({ data }: { data: MonthlyRevenuePoint[] }) {
               onMouseLeave={() => setHovered(null)}
             >
               {isActive && (
-                <div className="absolute -top-8 whitespace-nowrap rounded-md bg-ink px-2 py-1 text-xs text-white">
+                <div className="absolute -top-8 whitespace-nowrap rounded-md bg-sidebar px-2 py-1 text-xs text-white">
                   {formatBaht(d.totalSatang)}
                 </div>
               )}

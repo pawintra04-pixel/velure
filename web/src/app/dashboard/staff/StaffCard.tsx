@@ -32,14 +32,14 @@ export function StaffCard({ staff }: { staff: Staff }) {
 
   return (
     <div className="rounded-2xl border border-border bg-surface p-5">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <div className="font-medium">{staff.name}</div>
           <div className="mt-1 text-sm text-ink-muted">
             {staff.service_names.length > 0 ? staff.service_names.join(", ") : "No services assigned"}
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <button
             type="button"
             onClick={() => setExpanded((v) => !v)}

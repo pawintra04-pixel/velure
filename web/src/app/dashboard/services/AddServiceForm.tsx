@@ -20,7 +20,7 @@ export function AddServiceForm() {
         placeholder="Service name"
         className="rounded-lg border border-border px-3 py-2 text-sm"
       />
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <input
           name="durationMinutes"
           type="number"
@@ -37,7 +37,7 @@ export function AddServiceForm() {
           className="rounded-lg border border-border px-3 py-2 text-sm"
         />
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <input
           name="priceBaht"
           type="number"

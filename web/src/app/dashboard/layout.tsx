@@ -5,7 +5,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const owner = await requireOwner();
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen flex-col lg:flex-row">
       <Sidebar ownerEmail={owner.email} />
       <main className="min-w-0 flex-1 overflow-x-hidden">{children}</main>
     </div>

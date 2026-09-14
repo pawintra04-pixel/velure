@@ -7,24 +7,25 @@ export default async function StaffPage() {
   const owner = await requireOwner();
 
   const { staff, services } = await withBusinessContext(owner.businessId, async (c) => {
+    // Two correlated subqueries rather than two LEFT JOINs off staff — joining
+    // both staff_services (N services) and staff_hours (7 days) directly would
+    // cross-product them (N x 7 rows per staff), duplicating both aggregates
+    // by however many services/days the other one has.
     const staffResult = await c.query<Staff>(
       `SELECT st.id, st.name,
-              coalesce(array_agg(s.name) FILTER (WHERE s.id IS NOT NULL), '{}') AS service_names,
-              coalesce(
-                json_agg(
-                  json_build_object(
-                    'day_of_week', sh.day_of_week, 'is_off', sh.is_off,
-                    'start_time', sh.start_time, 'end_time', sh.end_time,
-                    'break_start', sh.break_start, 'break_end', sh.break_end
-                  ) ORDER BY sh.day_of_week
-                ) FILTER (WHERE sh.id IS NOT NULL),
-                '[]'
-              ) AS hours
+              (SELECT coalesce(array_agg(s.name), '{}')
+               FROM staff_services ss JOIN services s ON s.id = ss.service_id
+               WHERE ss.staff_id = st.id) AS service_names,
+              (SELECT coalesce(
+                 json_agg(
+                   json_build_object(
+                     'day_of_week', sh.day_of_week, 'is_off', sh.is_off,
+                     'start_time', sh.start_time, 'end_time', sh.end_time,
+                     'break_start', sh.break_start, 'break_end', sh.break_end
+                   ) ORDER BY sh.day_of_week
+                 ), '[]')
+               FROM staff_hours sh WHERE sh.staff_id = st.id) AS hours
        FROM staff st
-       LEFT JOIN staff_services ss ON ss.staff_id = st.id
-       LEFT JOIN services s ON s.id = ss.service_id
-       LEFT JOIN staff_hours sh ON sh.staff_id = st.id
-       GROUP BY st.id, st.name
        ORDER BY st.created_at`
     );
     const servicesResult = await c.query(`SELECT id, name FROM services ORDER BY name`);

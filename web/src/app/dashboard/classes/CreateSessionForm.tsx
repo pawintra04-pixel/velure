@@ -22,7 +22,7 @@ export function CreateSessionForm({ services, staff }: { services: Option[]; sta
 
   return (
     <form action={formAction} className="mt-3 flex flex-col gap-3 rounded-2xl border border-border bg-surface p-5">
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <select name="serviceId" className="rounded-lg border border-border px-3 py-2 text-sm">
           {services.map((s) => (
             <option key={s.id} value={s.id}>
@@ -38,7 +38,7 @@ export function CreateSessionForm({ services, staff }: { services: Option[]; sta
           ))}
         </select>
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <input type="date" name="date" className="rounded-lg border border-border px-3 py-2 text-sm" />
         <input type="time" name="time" className="rounded-lg border border-border px-3 py-2 text-sm" />
       </div>

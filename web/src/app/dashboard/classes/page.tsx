@@ -47,15 +47,15 @@ export default async function ClassesPage() {
         {sessions.map((s) => (
           <div
             key={s.id}
-            className="flex items-center justify-between rounded-2xl border border-border bg-surface p-5"
+            className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-5 sm:flex-row sm:items-center sm:justify-between"
           >
-            <div>
+            <div className="min-w-0">
               <div className="font-medium">{s.service_name}</div>
               <div className="mt-1 text-sm text-ink-muted">
                 {formatTime(s.start_time)} · {s.staff_name}
               </div>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex shrink-0 items-center justify-between gap-4 sm:justify-end">
               <div className="text-sm text-ink-secondary">
                 {s.seats_booked} / {s.capacity} booked
               </div>

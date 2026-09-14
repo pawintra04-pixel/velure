@@ -94,7 +94,7 @@ export function BookingWizard({
   }
 
   return (
-    <div className="mt-6 flex flex-col gap-6">
+    <div className="flex flex-col gap-6 rounded-2xl border border-border bg-surface p-6">
       <div className="flex gap-2 overflow-x-auto pb-1">
         {days.map((d) => (
           <button
@@ -114,7 +114,7 @@ export function BookingWizard({
         {slots.length === 0 ? (
           <div className="mt-3 text-sm text-ink-muted">No available times on this day</div>
         ) : (
-          <div className="mt-3 grid grid-cols-4 gap-2">
+          <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4">
             {slots.map((s) => (
               <button
                 key={s.startTime}

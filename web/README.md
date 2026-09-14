@@ -95,6 +95,10 @@ actually enter details (and possibly complete 3D Secure) client-side.
     12) and `cancel_cutoff_hours` (default 24) to `businesses` — per-business
     policy, not hardcoded, even though there's no settings UI yet to change
     them from the defaults.
+  - `011_service_customization.sql`: adds `services.description`/`image_url`
+    plus `service_custom_fields` and `booking_field_responses` (both RLS'd
+    the same way as every other tenant table, added inline here since
+    `007_row_level_security.sql` already ran).
 - `src/db/client.ts` — `appPool` (the non-superuser `app_user` role RLS
   actually applies to) and `withBusinessContext(businessId, fn)`, which
   every business-scoped query should go through. `adminPool` bypasses RLS
@@ -129,7 +133,25 @@ actually enter details (and possibly complete 3D Secure) client-side.
   it. This is the actual MVP core loop from docs/ARCHITECTURE.md, integrated
   for real (not just proven standalone like the spike). `/book/pay/[id]`
   and `/book/confirmed/[id]` stay unscoped by slug — reached by an
-  unguessable booking id, not by business.
+  unguessable booking id, not by business. Customer-facing pages use a
+  wider two-column layout on desktop (image/summary on the left, the
+  actual picker/form on the right) rather than a single centered mobile-
+  width column stretched across a full monitor — collapses to one column
+  below `lg`.
+- **Service customization**: `services.description`/`services.image_url`
+  (owner-editable via an "Edit" panel on `/dashboard/services`, shown to
+  customers on the service list and detail pages) and
+  `service_custom_fields` — owner-defined extra questions per service
+  (e.g. "Any allergies?"), each with an `importance` of `optional`,
+  `important` (shown with a badge, doesn't block submit), or `required`
+  (blocks submit — enforced both client-side, disabling the button, and
+  server-side in `completeBookingDetails`, since this is a public
+  unauthenticated endpoint and the client's copy of which fields are
+  required could be stale or bypassed). Answers land in
+  `booking_field_responses`, which snapshots the field's label/importance
+  at booking time rather than joining live to `service_custom_fields`, so
+  editing or deleting a question later never rewrites what a past customer
+  was actually asked.
 - `/book/manage/[bookingId]` — customer self-service reschedule/cancel,
   same unguessable-id-as-auth pattern as `/book/pay` and `/book/confirmed`
   (the id itself, long and random, stands in for a session since customers
@@ -222,10 +244,13 @@ data bleed between them), an owner dashboard on real data (incl. a booking
 status donut), the full booking → hold → payment (PromptPay **or** card) →
 webhook → confirmed loop working end to end in the real app, owner-side
 management (services, staff, a full calendar with status actions, reports
-with CSV export + print), and customer self-service reschedule/cancel with
+with CSV export + print), customer self-service reschedule/cancel with
 per-business cutoff policy (verified live, including the "too close to
-start time, blocked" path). Booking confirmation emails are coded and
-wired into both confirmation paths but genuinely untested — no
+start time, blocked" path), and per-service customization (description,
+photo, owner-defined required/important/optional booking-form questions —
+verified live end to end, including the required-field submit block and
+the answers landing in the database). Booking confirmation emails are
+coded and wired into both confirmation paths but genuinely untested — no
 `RESEND_API_KEY` supplied yet.
 
 Not started: customers CRUD UI (only `db/seed.ts` can create these), AI

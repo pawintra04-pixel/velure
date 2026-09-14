@@ -46,7 +46,7 @@ export default async function ManageBookingPage({
   const canCancel = booking.status === "CONFIRMED" && hoursUntilStart >= booking.cancel_cutoff_hours;
 
   return (
-    <div className="mx-auto max-w-md px-6 py-10">
+    <div className="mx-auto max-w-lg px-6 py-16">
       <h1 className="text-2xl font-semibold">Manage your booking</h1>
       <p className="mt-1 text-sm text-ink-secondary">{booking.business_name}</p>
 

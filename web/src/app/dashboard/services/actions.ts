@@ -50,6 +50,76 @@ export async function addService(_prev: ActionResult | null, formData: FormData)
   return { ok: true };
 }
 
+export async function updateServiceDetails(
+  _prev: ActionResult | null,
+  formData: FormData
+): Promise<ActionResult> {
+  const owner = await requireOwner();
+
+  const serviceId = String(formData.get("serviceId") ?? "");
+  const description = String(formData.get("description") ?? "").trim();
+  const imageUrl = String(formData.get("imageUrl") ?? "").trim();
+
+  if (!serviceId) return { ok: false, error: "Missing service." };
+  if (imageUrl && !/^https?:\/\//.test(imageUrl)) {
+    return { ok: false, error: "Image must be a valid http(s) URL." };
+  }
+
+  await withBusinessContext(owner.businessId, (c) =>
+    c.query(
+      `UPDATE services SET description = $1, image_url = $2 WHERE id = $3`,
+      [description || null, imageUrl || null, serviceId]
+    )
+  );
+
+  revalidatePath("/dashboard/services");
+  return { ok: true };
+}
+
+export async function addCustomField(
+  _prev: ActionResult | null,
+  formData: FormData
+): Promise<ActionResult> {
+  const owner = await requireOwner();
+
+  const serviceId = String(formData.get("serviceId") ?? "");
+  const label = String(formData.get("label") ?? "").trim();
+  const importance = String(formData.get("importance") ?? "optional");
+
+  if (!serviceId || !label) {
+    return { ok: false, error: "A label is required." };
+  }
+  if (!["optional", "important", "required"].includes(importance)) {
+    return { ok: false, error: "Invalid importance." };
+  }
+
+  await withBusinessContext(owner.businessId, async (c) => {
+    const { rows: [{ next_order }] } = await c.query<{ next_order: number }>(
+      `SELECT COALESCE(MAX(sort_order) + 1, 0) AS next_order FROM service_custom_fields WHERE service_id = $1`,
+      [serviceId]
+    );
+    await c.query(
+      `INSERT INTO service_custom_fields (business_id, service_id, label, importance, sort_order)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [owner.businessId, serviceId, label, importance, next_order]
+    );
+  });
+
+  revalidatePath("/dashboard/services");
+  return { ok: true };
+}
+
+export async function deleteCustomField(formData: FormData): Promise<void> {
+  const owner = await requireOwner();
+  const fieldId = String(formData.get("fieldId") ?? "");
+
+  await withBusinessContext(owner.businessId, (c) =>
+    c.query(`DELETE FROM service_custom_fields WHERE id = $1`, [fieldId])
+  );
+
+  revalidatePath("/dashboard/services");
+}
+
 export async function deleteService(formData: FormData): Promise<void> {
   const owner = await requireOwner();
   const serviceId = String(formData.get("serviceId") ?? "");

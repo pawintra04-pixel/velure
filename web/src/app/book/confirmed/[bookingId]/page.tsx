@@ -29,7 +29,7 @@ export default async function ConfirmedPage({
   }).format(new Date(booking.start_time));
 
   return (
-    <div className="mx-auto flex max-w-md flex-col items-center px-6 py-10 text-center">
+    <div className="mx-auto flex max-w-lg flex-col items-center px-6 py-16 text-center">
       <div className="text-4xl">✅</div>
       <h1 className="mt-4 text-2xl font-semibold">
         {booking.status === "CONFIRMED" ? "Booking confirmed" : `Status: ${booking.status}`}

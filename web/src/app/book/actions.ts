@@ -171,8 +171,17 @@ export async function completeBookingDetails(input: {
   customerPhone: string;
   customerEmail: string;
   paymentMethod: "promptpay" | "card";
+  customFieldValues?: { fieldId: string; value: string }[];
 }): Promise<CompleteDetailsResult> {
-  const { businessId, bookingId, customerName, customerPhone, customerEmail, paymentMethod } = input;
+  const {
+    businessId,
+    bookingId,
+    customerName,
+    customerPhone,
+    customerEmail,
+    paymentMethod,
+    customFieldValues = [],
+  } = input;
 
   if (!customerName.trim() || !customerPhone.trim() || !customerEmail.trim()) {
     return { ok: false, reason: "invalid_input" };
@@ -183,7 +192,7 @@ export async function completeBookingDetails(input: {
   try {
     setup = await withBusinessContext(businessId, async (c) => {
       const { rows: [booking] } = await c.query(
-        `SELECT status, amount, hold_expires_at FROM bookings WHERE id = $1`,
+        `SELECT status, amount, hold_expires_at, service_id FROM bookings WHERE id = $1`,
         [bookingId]
       );
       if (!booking || booking.status !== "TEMPORARY_HOLD") {
@@ -192,6 +201,24 @@ export async function completeBookingDetails(input: {
       if (booking.hold_expires_at && new Date(booking.hold_expires_at) < new Date()) {
         await c.query(`UPDATE bookings SET status = 'EXPIRED' WHERE id = $1`, [bookingId]);
         throw new Error("hold_expired");
+      }
+
+      // The client only disables submit for required fields it knows
+      // about — re-validate against the service's actual fields here too,
+      // since this is a public endpoint and the client's copy could be
+      // stale or bypassed entirely.
+      const { rows: fields } = await c.query<{
+        id: string;
+        label: string;
+        importance: "optional" | "important" | "required";
+      }>(`SELECT id, label, importance FROM service_custom_fields WHERE service_id = $1`, [
+        booking.service_id,
+      ]);
+      const valueByFieldId = new Map(customFieldValues.map((v) => [v.fieldId, v.value.trim()]));
+      for (const field of fields) {
+        if (field.importance === "required" && !valueByFieldId.get(field.id)) {
+          throw new Error("invalid_input");
+        }
       }
 
       const { rows: [customer] } = await c.query(
@@ -210,6 +237,16 @@ export async function completeBookingDetails(input: {
         bookingId,
       ]);
 
+      for (const field of fields) {
+        const value = valueByFieldId.get(field.id);
+        if (!value) continue;
+        await c.query(
+          `INSERT INTO booking_field_responses (business_id, booking_id, field_id, label, importance, value)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [businessId, bookingId, field.id, field.label, field.importance, value]
+        );
+      }
+
       const { rows: [business] } = await c.query(
         `SELECT stripe_account_id FROM businesses WHERE id = $1`,
         [businessId]
@@ -218,6 +255,9 @@ export async function completeBookingDetails(input: {
       return { amount: booking.amount, stripeAccountId: business.stripe_account_id };
     });
   } catch (err) {
+    if ((err as Error).message === "invalid_input") {
+      return { ok: false, reason: "invalid_input" };
+    }
     if ((err as Error).message === "hold_expired") {
       return { ok: false, reason: "hold_expired" };
     }

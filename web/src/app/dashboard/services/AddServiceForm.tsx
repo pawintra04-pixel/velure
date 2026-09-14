@@ -67,6 +67,17 @@ export function AddServiceForm() {
           className="rounded-lg border border-border px-3 py-2 text-sm"
         />
       )}
+      <label className="text-sm text-ink-secondary">
+        Capacity (seats) — leave blank for a regular 1:1 service
+        <input
+          name="capacity"
+          type="number"
+          min={2}
+          step={1}
+          placeholder="e.g. 10 for a class"
+          className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
+        />
+      </label>
       {state && !state.ok && <div className="text-sm text-[#d03b3b]">{state.error}</div>}
       <button
         type="submit"

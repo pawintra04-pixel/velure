@@ -28,7 +28,7 @@ export default async function ManageBookingPage({
   const { bookingId } = await params;
 
   const { rows: [booking] } = await adminPool.query(
-    `SELECT b.id, b.status, b.amount, b.start_time, b.service_id,
+    `SELECT b.id, b.status, b.amount, b.start_time, b.service_id, b.class_session_id,
             s.name AS service_name, st.name AS staff_name,
             biz.name AS business_name, biz.slug AS business_slug, biz.logo_url AS business_logo_url,
             biz.reschedule_cutoff_hours, biz.cancel_cutoff_hours
@@ -44,7 +44,9 @@ export default async function ManageBookingPage({
 
   const hoursUntilStart = hoursUntil(booking.start_time);
   const canReschedule =
-    booking.status === "CONFIRMED" && hoursUntilStart >= booking.reschedule_cutoff_hours;
+    !booking.class_session_id &&
+    booking.status === "CONFIRMED" &&
+    hoursUntilStart >= booking.reschedule_cutoff_hours;
   const canCancel = booking.status === "CONFIRMED" && hoursUntilStart >= booking.cancel_cutoff_hours;
 
   return (
@@ -87,6 +89,7 @@ export default async function ManageBookingPage({
             canCancel={canCancel}
             rescheduleCutoffHours={booking.reschedule_cutoff_hours}
             cancelCutoffHours={booking.cancel_cutoff_hours}
+            isClassBooking={Boolean(booking.class_session_id)}
           />
         ) : (
           <p className="mt-4 text-sm text-ink-muted">

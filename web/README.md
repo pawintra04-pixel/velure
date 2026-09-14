@@ -110,6 +110,20 @@ actually enter details (and possibly complete 3D Secure) client-side.
     inherits the business's current hours rather than the stub, so
     narrowing shop hours in Settings doesn't get silently overridden by
     the next hire).
+  - `013_class_sessions.sql`: multi-seat "class" bookings, layered on top
+    of the existing model rather than replacing it. `services.capacity`
+    (NULL/1 = ordinary 1:1 service, >1 = a class) plus `class_sessions`
+    (one scheduled occurrence — staff, time, capacity, a `seats_booked`
+    counter). Each attendee is still an ordinary row in `bookings`, tagged
+    with `class_session_id`, reusing its entire existing customer/status/
+    payment/cancellation machinery unchanged. The one real schema change:
+    `no_overlapping_staff_bookings` now excludes `class_session_id IS NULL`
+    rows only, since multiple attendees of the *same* session legitimately
+    share an identical (staff, time range) that the old constraint would
+    have treated as a collision — see the migration's comment for the one
+    resulting gap (a 1:1 hold racing a brand-new class session is checked
+    at the application level, not atomically, unlike every other overlap
+    in this schema).
 - `src/db/client.ts` — `appPool` (the non-superuser `app_user` role RLS
   actually applies to) and `withBusinessContext(businessId, fn)`, which
   every business-scoped query should go through. `adminPool` bypasses RLS
@@ -222,7 +236,30 @@ actually enter details (and possibly complete 3D Secure) client-side.
   than cascading the delete — booking history shouldn't silently vanish.
   Each team member has an "Hours" panel to set their own weekly working
   hours and one optional break per day (`updateStaffHours` in
-  `staff/actions.ts`), read by `availability.ts`.
+  `staff/actions.ts`), read by `availability.ts`. Setting a service's
+  capacity to 2+ (also on this page) marks it a class — see `classes/`.
+- `src/app/dashboard/classes/` — schedule sessions for class-type services
+  (pick the service, a staff member, a date/time — end time comes from the
+  service's duration). Removing a session with existing bookings is
+  blocked the same way deleting a service/staff member with bookings is.
+  `src/lib/classes.ts` holds `claimClassSeat`/`releaseClassSeat`, the
+  atomic capacity guard (`UPDATE ... WHERE seats_booked < capacity`, same
+  race-safety idea as the 1:1 flow's exclusion constraint, just a counter
+  instead of a range check) — every place a class-attendee booking leaves
+  an active status (hold expiry, payment failure, cancellation from either
+  `/book/manage` or the dashboard) releases the seat through it, or seats
+  permanently leak away.
+- `src/app/book/[slug]/[serviceId]/` — branches on the service's capacity:
+  a normal service still gets `BookingWizard`'s dynamic day/time picker;
+  a class-type service gets `ClassSessionPicker` instead, listing the
+  owner's scheduled sessions with seats remaining. Reserving a seat
+  (`reserveClassSeat` in `book/actions.ts`) creates an ordinary
+  `TEMPORARY_HOLD` booking tagged with the session and flows into the
+  *exact same* details/payment/confirmation pages as a 1:1 booking — the
+  only thing that differs is how the hold was created. Class bookings
+  can't be rescheduled via `/book/manage` (their time belongs to the whole
+  session, not one attendee) — cancel and book a different session
+  instead; they can still be cancelled normally.
 - `src/app/dashboard/settings/` — business profile (name, type, logo,
   description, address, contact info — the description/address/contact
   also show on the public booking page) and weekly opening hours, per
@@ -276,12 +313,27 @@ the answers landing in the database), and a real business Settings page
 break windows, both wired directly into `availability.ts` (verified via
 direct calls: a closed weekday and a staff break both correctly zero out
 those slots) — this replaces the old hardcoded-09:00–19:00 stub entirely.
-Booking confirmation emails are coded and wired into both confirmation
-paths but genuinely untested — no `RESEND_API_KEY` supplied yet.
+Also done: multi-seat class bookings (owner schedules sessions with a
+capacity, customers book a seat, atomic overbooking protection, seats
+released back on cancel/expiry/payment-failure — verified directly:
+filled a 3-seat class to capacity, confirmed a 4th reservation was
+refused, cancelled one attendee and confirmed the freed seat could be
+re-claimed, and confirmed a 1:1 hold can't be created over an active
+class session's time). Booking confirmation emails are coded and wired
+into both confirmation paths but genuinely untested — no `RESEND_API_KEY`
+supplied yet.
 
 Not started: customers CRUD UI (only `db/seed.ts` can create these), AI
 onboarding, embed widget, refunds, connecting a Stripe account for a newly
-signed-up business (no UI for it yet), multi-seat/class-style bookings
-(every booking is still one customer, one staff member, one slot), and
-Velure's own SaaS subscription billing (charging business owners
-monthly/yearly — discussed, not designed).
+signed-up business (no UI for it yet), and Velure's own SaaS subscription
+billing (charging business owners monthly/yearly — discussed, not
+designed). Known gaps: class-booking custom fields aren't supported yet
+(the required/important/optional questions feature only applies to 1:1
+services); an owner can't cancel a whole class session that has existing
+attendee bookings (must cancel each attendee first, same restriction as
+deleting a service/staff member with bookings); a class's capacity can
+only be set at creation, not edited afterward. The class-scheduling and
+session-picker UI is implemented and its booking/capacity logic verified
+directly against the database, but not yet exercised through the actual
+browser UI (extension was disconnected mid-session) — worth a manual
+click-through before relying on it.

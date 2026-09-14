@@ -36,6 +36,7 @@ export function ManageBookingClient({
   canCancel,
   rescheduleCutoffHours,
   cancelCutoffHours,
+  isClassBooking,
 }: {
   bookingId: string;
   serviceId: string;
@@ -43,6 +44,7 @@ export function ManageBookingClient({
   canCancel: boolean;
   rescheduleCutoffHours: number;
   cancelCutoffHours: number;
+  isClassBooking: boolean;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -117,7 +119,9 @@ export function ManageBookingClient({
             </button>
           ) : (
             <div className="flex-1 text-xs text-ink-muted">
-              Reschedules must be made at least {rescheduleCutoffHours}h in advance.
+              {isClassBooking
+                ? "Class bookings can't be rescheduled — cancel and book a different session instead."
+                : `Reschedules must be made at least ${rescheduleCutoffHours}h in advance.`}
             </div>
           )}
         </div>

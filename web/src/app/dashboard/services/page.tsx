@@ -9,7 +9,7 @@ export default async function ServicesPage() {
   const services = await withBusinessContext(owner.businessId, async (c) => {
     const { rows } = await c.query<Service>(
       `SELECT s.id, s.name, s.duration_minutes, s.buffer_minutes, s.price_amount,
-              s.payment_mode, s.deposit_amount, s.description, s.image_url,
+              s.payment_mode, s.deposit_amount, s.description, s.image_url, s.capacity,
               COALESCE(
                 json_agg(
                   json_build_object('id', f.id, 'label', f.label, 'importance', f.importance)

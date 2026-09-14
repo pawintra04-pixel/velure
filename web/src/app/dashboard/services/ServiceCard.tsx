@@ -22,6 +22,7 @@ export type Service = {
   deposit_amount: number | null;
   description: string | null;
   image_url: string | null;
+  capacity: number | null;
   customFields: CustomField[];
 };
 
@@ -55,7 +56,14 @@ export function ServiceCard({ service }: { service: Service }) {
             />
           )}
           <div>
-            <div className="font-medium">{service.name}</div>
+            <div className="flex items-center gap-2">
+              <span className="font-medium">{service.name}</span>
+              {service.capacity && (
+                <span className="rounded-full bg-[#eaf1fb] px-2 py-0.5 text-xs text-[#3462ad]">
+                  Class · {service.capacity} seats
+                </span>
+              )}
+            </div>
             <div className="mt-1 text-sm text-ink-muted">
               {service.duration_minutes} min
               {service.buffer_minutes > 0 && ` + ${service.buffer_minutes} min buffer`}

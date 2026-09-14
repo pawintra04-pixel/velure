@@ -1,9 +1,36 @@
 "use server";
 
+import type { PoolClient } from "pg";
 import { withBusinessContext } from "@/db/client";
 import { stripe } from "@/lib/stripe";
 import { getAvailableSlots, type Slot } from "@/lib/availability";
 import { sendBookingConfirmationEmail } from "@/lib/email";
+import { claimClassSeat, releaseClassSeat } from "@/lib/classes";
+
+/**
+ * Sweeps this business's own abandoned holds to EXPIRED (same reasoning as
+ * createQuickHold's own sweep) and releases any class seat a swept
+ * class-attendee booking was holding — otherwise a seat taken by an
+ * abandoned hold would never come back, since class_sessions.seats_booked
+ * only ever decrements through explicit release calls, never a query.
+ */
+async function sweepExpiredHolds(c: PoolClient): Promise<void> {
+  const { rows: swept } = await c.query<{ class_session_id: string | null }>(
+    `UPDATE bookings SET status = 'EXPIRED'
+     WHERE status IN ('TEMPORARY_HOLD', 'PAYMENT_PENDING') AND hold_expires_at < now()
+     RETURNING class_session_id`
+  );
+  const counts = new Map<string, number>();
+  for (const row of swept) {
+    if (row.class_session_id) counts.set(row.class_session_id, (counts.get(row.class_session_id) ?? 0) + 1);
+  }
+  for (const [sessionId, count] of counts) {
+    await c.query(`UPDATE class_sessions SET seats_booked = seats_booked - $1 WHERE id = $2`, [
+      count,
+      sessionId,
+    ]);
+  }
+}
 
 export async function fetchSlots(
   businessId: string,
@@ -37,15 +64,9 @@ export async function createQuickHold(input: {
 
   try {
     const bookingId = await withBusinessContext(businessId, async (c) => {
-      // Sweep this business's own abandoned holds before inserting — the
-      // EXCLUDE constraint only checks `status`, not hold_expires_at, so an
-      // old TEMPORARY_HOLD nobody ever came back to would otherwise block
-      // this slot forever. Cheap: indexed on business_id, and only matters
-      // right when a new insert is about to contend for the same row.
-      await c.query(
-        `UPDATE bookings SET status = 'EXPIRED'
-         WHERE status IN ('TEMPORARY_HOLD', 'PAYMENT_PENDING') AND hold_expires_at < now()`
-      );
+      // Cheap: indexed on business_id, and only matters right when a new
+      // insert is about to contend for the same row.
+      await sweepExpiredHolds(c);
 
       const { rows: [service] } = await c.query(
         `SELECT price_amount, payment_mode, deposit_amount FROM services WHERE id = $1`,
@@ -58,6 +79,20 @@ export async function createQuickHold(input: {
         [serviceId]
       );
       if (!assignment) throw new Error("no_staff_assigned");
+
+      // A class session occupies its staff member exclusively for its
+      // duration, but (see migration 013's note) class-tagged bookings no
+      // longer participate in the DB-level exclusion constraint — so a 1:1
+      // hold has to check for an overlapping class session itself. Unlike
+      // the exclusion constraint, this is a plain check-then-insert: a
+      // narrow race against a class being scheduled at this exact moment
+      // is possible but not closed here.
+      const { rows: [conflict] } = await c.query(
+        `SELECT 1 FROM class_sessions
+         WHERE staff_id = $1 AND tstzrange(start_time, end_time) && tstzrange($2, $3)`,
+        [assignment.staff_id, startTime, endTime]
+      );
+      if (conflict) throw new Error("slot_taken");
 
       const amount =
         service.payment_mode === "free"
@@ -78,10 +113,80 @@ export async function createQuickHold(input: {
 
     return { ok: true, bookingId };
   } catch (err) {
-    if ((err as { code?: string }).code === "23P01") {
+    if ((err as { code?: string }).code === "23P01" || (err as Error).message === "slot_taken") {
       return { ok: false, reason: "slot_taken" };
     }
     console.error("createQuickHold failed", err);
+    return { ok: false, reason: "server_error" };
+  }
+}
+
+export type ReserveSeatResult =
+  | { ok: true; bookingId: string }
+  | { ok: false; reason: "class_full" | "server_error" };
+
+/**
+ * Class-booking equivalent of createQuickHold: claims one seat on an
+ * existing class_sessions row (atomically, via claimClassSeat) and creates
+ * a normal TEMPORARY_HOLD booking tagged with that session — from here on
+ * it flows through the exact same details/payment/confirmation code as a
+ * 1:1 booking.
+ */
+export async function reserveClassSeat(input: {
+  businessId: string;
+  classSessionId: string;
+}): Promise<ReserveSeatResult> {
+  const { businessId, classSessionId } = input;
+
+  try {
+    const bookingId = await withBusinessContext(businessId, async (c) => {
+      await sweepExpiredHolds(c);
+
+      const { rows: [session] } = await c.query(
+        `SELECT service_id, staff_id, start_time, end_time FROM class_sessions WHERE id = $1`,
+        [classSessionId]
+      );
+      if (!session) throw new Error("server_error");
+
+      const claimed = await claimClassSeat(c, classSessionId);
+      if (!claimed) throw new Error("class_full");
+
+      const { rows: [service] } = await c.query(
+        `SELECT price_amount, payment_mode, deposit_amount FROM services WHERE id = $1`,
+        [session.service_id]
+      );
+      const amount =
+        service.payment_mode === "free"
+          ? 0
+          : service.payment_mode === "deposit"
+            ? service.deposit_amount
+            : service.price_amount;
+
+      const { rows: [booking] } = await c.query(
+        `INSERT INTO bookings
+           (business_id, service_id, staff_id, start_time, end_time, status, hold_expires_at, amount, class_session_id)
+         VALUES ($1, $2, $3, $4, $5, 'TEMPORARY_HOLD', $6, $7, $8)
+         RETURNING id`,
+        [
+          businessId,
+          session.service_id,
+          session.staff_id,
+          session.start_time,
+          session.end_time,
+          new Date(Date.now() + 10 * 60_000),
+          amount,
+          classSessionId,
+        ]
+      );
+      return booking.id;
+    });
+
+    return { ok: true, bookingId };
+  } catch (err) {
+    if ((err as Error).message === "class_full") {
+      return { ok: false, reason: "class_full" };
+    }
+    console.error("reserveClassSeat failed", err);
     return { ok: false, reason: "server_error" };
   }
 }
@@ -99,9 +204,18 @@ async function initiatePayment(params: {
   paymentMethod: "promptpay" | "card";
   customerName: string;
   customerEmail: string;
+  classSessionId: string | null;
 }): Promise<{ ok: true } | { ok: false }> {
-  const { businessId, bookingId, amount, stripeAccountId, paymentMethod, customerName, customerEmail } =
-    params;
+  const {
+    businessId,
+    bookingId,
+    amount,
+    stripeAccountId,
+    paymentMethod,
+    customerName,
+    customerEmail,
+    classSessionId,
+  } = params;
 
   try {
     let paymentIntentId: string;
@@ -150,9 +264,10 @@ async function initiatePayment(params: {
     return { ok: true };
   } catch (err) {
     console.error("Stripe payment setup failed", err);
-    await withBusinessContext(businessId, (c) =>
-      c.query(`UPDATE bookings SET status = 'PAYMENT_FAILED' WHERE id = $1`, [bookingId])
-    );
+    await withBusinessContext(businessId, async (c) => {
+      await c.query(`UPDATE bookings SET status = 'PAYMENT_FAILED' WHERE id = $1`, [bookingId]);
+      if (classSessionId) await releaseClassSeat(c, classSessionId);
+    });
     return { ok: false };
   }
 }
@@ -187,12 +302,12 @@ export async function completeBookingDetails(input: {
     return { ok: false, reason: "invalid_input" };
   }
 
-  type Setup = { amount: number; stripeAccountId: string | null };
+  type Setup = { amount: number; stripeAccountId: string | null; classSessionId: string | null };
   let setup: Setup;
   try {
     setup = await withBusinessContext(businessId, async (c) => {
       const { rows: [booking] } = await c.query(
-        `SELECT status, amount, hold_expires_at, service_id FROM bookings WHERE id = $1`,
+        `SELECT status, amount, hold_expires_at, service_id, class_session_id FROM bookings WHERE id = $1`,
         [bookingId]
       );
       if (!booking || booking.status !== "TEMPORARY_HOLD") {
@@ -200,6 +315,7 @@ export async function completeBookingDetails(input: {
       }
       if (booking.hold_expires_at && new Date(booking.hold_expires_at) < new Date()) {
         await c.query(`UPDATE bookings SET status = 'EXPIRED' WHERE id = $1`, [bookingId]);
+        if (booking.class_session_id) await releaseClassSeat(c, booking.class_session_id);
         throw new Error("hold_expired");
       }
 
@@ -252,7 +368,11 @@ export async function completeBookingDetails(input: {
         [businessId]
       );
 
-      return { amount: booking.amount, stripeAccountId: business.stripe_account_id };
+      return {
+        amount: booking.amount,
+        stripeAccountId: business.stripe_account_id,
+        classSessionId: booking.class_session_id,
+      };
     });
   } catch (err) {
     if ((err as Error).message === "invalid_input") {
@@ -283,6 +403,7 @@ export async function completeBookingDetails(input: {
     paymentMethod,
     customerName: customerName.trim(),
     customerEmail: customerEmail.trim(),
+    classSessionId: setup.classSessionId,
   });
 
   if (!paymentResult.ok) {

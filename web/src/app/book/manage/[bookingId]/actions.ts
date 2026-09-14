@@ -2,6 +2,7 @@
 
 import { adminPool, withBusinessContext } from "@/db/client";
 import { getAvailableSlots, type Slot } from "@/lib/availability";
+import { releaseClassSeat } from "@/lib/classes";
 
 type PolicyCheck = {
   businessId: string;
@@ -10,6 +11,7 @@ type PolicyCheck = {
   startTime: string;
   rescheduleCutoffHours: number;
   cancelCutoffHours: number;
+  classSessionId: string | null;
 };
 
 /**
@@ -20,7 +22,7 @@ type PolicyCheck = {
  */
 async function loadPolicyCheck(bookingId: string): Promise<PolicyCheck | null> {
   const { rows: [row] } = await adminPool.query(
-    `SELECT b.business_id, b.service_id, b.status, b.start_time,
+    `SELECT b.business_id, b.service_id, b.status, b.start_time, b.class_session_id,
             biz.reschedule_cutoff_hours, biz.cancel_cutoff_hours
      FROM bookings b
      JOIN businesses biz ON biz.id = b.business_id
@@ -35,6 +37,7 @@ async function loadPolicyCheck(bookingId: string): Promise<PolicyCheck | null> {
     startTime: row.start_time,
     rescheduleCutoffHours: row.reschedule_cutoff_hours,
     cancelCutoffHours: row.cancel_cutoff_hours,
+    classSessionId: row.class_session_id,
   };
 }
 
@@ -67,11 +70,14 @@ export async function cancelBooking(bookingId: string): Promise<ManageActionResu
     };
   }
 
-  await withBusinessContext(check.businessId, (c) =>
-    c.query(`UPDATE bookings SET status = 'CANCELLED' WHERE id = $1 AND status = 'CONFIRMED'`, [
+  await withBusinessContext(check.businessId, async (c) => {
+    await c.query(`UPDATE bookings SET status = 'CANCELLED' WHERE id = $1 AND status = 'CONFIRMED'`, [
       bookingId,
-    ])
-  );
+    ]);
+    // Free the seat back up — class_sessions.seats_booked only ever moves
+    // through explicit release calls like this one, never a live count.
+    if (check.classSessionId) await releaseClassSeat(c, check.classSessionId);
+  });
   return { ok: true };
 }
 
@@ -84,6 +90,12 @@ export async function rescheduleBooking(
   if (!check) return { ok: false, error: "Booking not found." };
   if (check.status !== "CONFIRMED") {
     return { ok: false, error: "This booking can no longer be rescheduled." };
+  }
+  // A class booking's time belongs to its session, not to this individual
+  // attendee — moving it would mean moving everyone else registered too.
+  // Cancel and re-register for a different session instead.
+  if (check.classSessionId) {
+    return { ok: false, error: "Class bookings can't be rescheduled — cancel and book a different session instead." };
   }
   if (hoursUntil(check.startTime) < check.rescheduleCutoffHours) {
     return {

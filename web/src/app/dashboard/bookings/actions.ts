@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireOwner } from "@/lib/auth";
 import { withBusinessContext } from "@/db/client";
+import { releaseClassSeat } from "@/lib/classes";
 
 // Only these target statuses are reachable from the dashboard, and only
 // from these source statuses — never trust a status string from the client
@@ -23,13 +24,19 @@ export async function updateBookingStatus(formData: FormData): Promise<void> {
     throw new Error("Invalid status transition.");
   }
 
-  await withBusinessContext(owner.businessId, (c) =>
-    c.query(
+  await withBusinessContext(owner.businessId, async (c) => {
+    const { rows: [updated] } = await c.query(
       `UPDATE bookings SET status = $1
-       WHERE id = $2 AND status = ANY($3::booking_status[])`,
+       WHERE id = $2 AND status = ANY($3::booking_status[])
+       RETURNING class_session_id`,
       [nextStatus, bookingId, allowedFrom]
-    )
-  );
+    );
+    // Only an actual cancellation frees the seat — a no-show still took
+    // the spot, they just didn't turn up for it.
+    if (updated?.class_session_id && nextStatus === "CANCELLED") {
+      await releaseClassSeat(c, updated.class_session_id);
+    }
+  });
 
   revalidatePath("/dashboard/bookings");
   revalidatePath("/dashboard");

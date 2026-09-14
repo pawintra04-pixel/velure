@@ -18,6 +18,8 @@ export async function addService(_prev: ActionResult | null, formData: FormData)
   const priceBaht = Number(formData.get("priceBaht"));
   const paymentMode = String(formData.get("paymentMode") ?? "full");
   const depositBaht = Number(formData.get("depositBaht") ?? 0);
+  const capacityRaw = String(formData.get("capacity") ?? "").trim();
+  const capacity = capacityRaw ? Number(capacityRaw) : null;
 
   if (!name || !Number.isFinite(durationMinutes) || durationMinutes <= 0) {
     return { ok: false, error: "Name and a valid duration are required." };
@@ -28,12 +30,15 @@ export async function addService(_prev: ActionResult | null, formData: FormData)
   if (paymentMode === "deposit" && (!Number.isFinite(depositBaht) || depositBaht <= 0)) {
     return { ok: false, error: "Deposit amount is required for deposit-mode services." };
   }
+  if (capacity !== null && (!Number.isInteger(capacity) || capacity < 2)) {
+    return { ok: false, error: "Capacity must be a whole number of 2 or more (leave blank for a regular 1:1 service)." };
+  }
 
   await withBusinessContext(owner.businessId, (c) =>
     c.query(
       `INSERT INTO services
-         (business_id, name, duration_minutes, buffer_minutes, price_amount, payment_mode, deposit_amount)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+         (business_id, name, duration_minutes, buffer_minutes, price_amount, payment_mode, deposit_amount, capacity)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
       [
         owner.businessId,
         name,
@@ -42,6 +47,7 @@ export async function addService(_prev: ActionResult | null, formData: FormData)
         Math.round(priceBaht * 100),
         paymentMode,
         paymentMode === "deposit" ? Math.round(depositBaht * 100) : null,
+        capacity,
       ]
     )
   );

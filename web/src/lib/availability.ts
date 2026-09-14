@@ -111,12 +111,22 @@ export async function getAvailableSlots(
       // land between two writes and see an abandoned hold nobody has
       // attempted to re-book yet, which would otherwise show a genuinely
       // free slot as taken.
+      //
+      // Also pulls in this staff member's class_sessions for the day — a
+      // class occupies them exclusively too, and unlike a real overlap
+      // between two 1:1 bookings (an actual race), a slot colliding with an
+      // already-scheduled class is a certainty, not a race, so it's worth
+      // filtering out here rather than letting the customer hit
+      // createQuickHold's "slot just taken" only to find out at insert time.
       `SELECT start_time, end_time FROM bookings
        WHERE staff_id = $1
          AND status IN ('TEMPORARY_HOLD', 'PAYMENT_PENDING', 'CONFIRMED')
          AND (hold_expires_at IS NULL OR hold_expires_at >= now())
          AND start_time::date = $2::date
-         AND ($3::uuid IS NULL OR id != $3::uuid)`,
+         AND ($3::uuid IS NULL OR id != $3::uuid)
+       UNION ALL
+       SELECT start_time, end_time FROM class_sessions
+       WHERE staff_id = $1 AND start_time::date = $2::date`,
       [info.staffId, dateISO, excludeBookingId ?? null]
     );
 

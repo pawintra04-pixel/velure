@@ -34,6 +34,11 @@ const NAV_ITEMS = [
     icon: "M7 8a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Zm7 1a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM2.5 16c.5-3 2-5 4.5-5s4 2 4.5 5M12.5 12c2 0 3.5 1.7 4 4",
   },
   {
+    label: "Classes",
+    href: "/dashboard/classes",
+    icon: "M4 6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6Zm3 3.5h6M7 12.5h4",
+  },
+  {
     label: "Reports",
     href: "/dashboard/reports",
     icon: "M4 16V9m4.5 7V4m4.5 12v-5m4.5 5V7",

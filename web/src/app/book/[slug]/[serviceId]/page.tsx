@@ -3,6 +3,7 @@ import { getBusinessBySlug } from "@/lib/business";
 import { withBusinessContext } from "@/db/client";
 import { getAvailableSlots } from "@/lib/availability";
 import { BookingWizard } from "./BookingWizard";
+import { ClassSessionPicker } from "./ClassSessionPicker";
 import { BookingHeader } from "@/components/booking/BookingHeader";
 
 function todayISOInBangkok(): string {
@@ -21,7 +22,7 @@ export default async function ServiceBookingPage({
 
   const service = await withBusinessContext(businessId, async (c) => {
     const { rows: [row] } = await c.query(
-      `SELECT id, name, duration_minutes, price_amount, currency, payment_mode, deposit_amount, description, image_url
+      `SELECT id, name, duration_minutes, price_amount, currency, payment_mode, deposit_amount, description, image_url, capacity
        FROM services WHERE id = $1`,
       [serviceId]
     );
@@ -30,8 +31,24 @@ export default async function ServiceBookingPage({
 
   if (!service) notFound();
 
+  const isClass = Boolean(service.capacity && service.capacity >= 2);
+
   const today = todayISOInBangkok();
-  const initialSlots = await getAvailableSlots(businessId, serviceId, today);
+  const initialSlots = isClass ? [] : await getAvailableSlots(businessId, serviceId, today);
+
+  const classSessions = isClass
+    ? await withBusinessContext(businessId, async (c) => {
+        const { rows } = await c.query(
+          `SELECT cs.id, cs.start_time, cs.capacity, cs.seats_booked, st.name AS staff_name
+           FROM class_sessions cs
+           JOIN staff st ON st.id = cs.staff_id
+           WHERE cs.service_id = $1 AND cs.start_time >= now()
+           ORDER BY cs.start_time`,
+          [serviceId]
+        );
+        return rows;
+      })
+    : [];
 
   return (
     <>
@@ -54,13 +71,17 @@ export default async function ServiceBookingPage({
             )}
           </div>
 
-          <BookingWizard
-            slug={slug}
-            businessId={businessId}
-            serviceId={serviceId}
-            initialDate={today}
-            initialSlots={initialSlots}
-          />
+          {isClass ? (
+            <ClassSessionPicker slug={slug} businessId={businessId} sessions={classSessions} />
+          ) : (
+            <BookingWizard
+              slug={slug}
+              businessId={businessId}
+              serviceId={serviceId}
+              initialDate={today}
+              initialSlots={initialSlots}
+            />
+          )}
         </div>
       </div>
     </>

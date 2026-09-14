@@ -21,6 +21,13 @@ async function main() {
     `INSERT INTO businesses (name) VALUES ('Other Shop (isolation test)') RETURNING id`
   );
   const businessBId = businessB.id;
+  // Everything from here runs inside try/finally: an earlier version of this
+  // script let a mid-run failure skip cleanup entirely, leaving this row
+  // behind to silently become "the oldest business" for anything (like the
+  // dashboard's temporary getDemoBusinessId() stub) that queries businesses
+  // ordered by created_at. Cost a real debugging session — see git history.
+  let start = "";
+  try {
 
   // 1. RLS: business A's session sees only its own bookings/staff, unscoped query.
   const ownStaff = await withBusinessContext(businessAId, (c) =>
@@ -55,10 +62,13 @@ async function main() {
     [businessAId]
   );
 
-  const start = "2026-11-01T10:00:00.000Z";
-  const end = "2026-11-01T11:00:00.000Z";
-  const overlappingStart = "2026-11-01T10:30:00.000Z"; // overlaps, doesn't share exact start_time
-  const overlappingEnd = "2026-11-01T11:30:00.000Z";
+  // Randomized so reruns never collide with a booking a previous run left
+  // behind — this script inserts real rows and should be safely rerunnable.
+  const day = 1 + Math.floor(Math.random() * 27);
+  start = `2026-11-${String(day).padStart(2, "0")}T10:00:00.000Z`;
+  const end = `2026-11-${String(day).padStart(2, "0")}T11:00:00.000Z`;
+  const overlappingStart = `2026-11-${String(day).padStart(2, "0")}T10:30:00.000Z`; // overlaps, doesn't share exact start_time
+  const overlappingEnd = `2026-11-${String(day).padStart(2, "0")}T11:30:00.000Z`;
 
   await withBusinessContext(businessAId, (c) =>
     c.query(
@@ -77,8 +87,8 @@ async function main() {
         [businessAId, service.id, staff.id, overlappingStart, overlappingEnd, service.price_amount]
       )
     );
-  } catch (err: any) {
-    secondBookingRejected = err.code === "23P01"; // exclusion_violation
+  } catch (err) {
+    secondBookingRejected = (err as { code?: string }).code === "23P01"; // exclusion_violation
   }
   results.push(
     check(
@@ -87,8 +97,17 @@ async function main() {
     )
   );
 
-  // cleanup the isolation-test business
-  await adminPool.query(`DELETE FROM businesses WHERE id = $1`, [businessBId]);
+  } finally {
+    // Runs even if an assertion above throws — see the comment where
+    // businessB was created for why this matters.
+    await adminPool.query(`DELETE FROM businesses WHERE id = $1`, [businessBId]);
+    if (start) {
+      await adminPool.query(
+        `DELETE FROM bookings WHERE business_id = $1 AND start_time = $2`,
+        [businessAId, start]
+      );
+    }
+  }
 
   const pass = results.every(Boolean);
   console.log(pass ? "\n✅ ALL CHECKS PASS" : "\n❌ SOME CHECKS FAILED");

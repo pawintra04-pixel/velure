@@ -20,8 +20,9 @@ type ServiceInfo = {
  * Slots are a UI convenience only — the actual "is this really free" check
  * is the database's overlap EXCLUDE constraint (see
  * db/migrations/006_bookings.sql), enforced again at insert time in
- * createHold(). A slot listed here can still lose a race to a concurrent
- * booking; that's fine, that's the whole point of spikes/atomic-booking.
+ * createQuickHold(). A slot listed here can still lose a race to a
+ * concurrent booking; that's fine, that's the whole point of
+ * spikes/atomic-booking.
  */
 export async function getAvailableSlots(
   businessId: string,
@@ -53,9 +54,15 @@ export async function getAvailableSlots(
       start_time: string;
       end_time: string;
     }>(
+      // hold_expires_at check matters even though createQuickHold also
+      // sweeps stale holds to EXPIRED before inserting — a read here can
+      // land between two writes and see an abandoned hold nobody has
+      // attempted to re-book yet, which would otherwise show a genuinely
+      // free slot as taken.
       `SELECT start_time, end_time FROM bookings
        WHERE staff_id = $1
          AND status IN ('TEMPORARY_HOLD', 'PAYMENT_PENDING', 'CONFIRMED')
+         AND (hold_expires_at IS NULL OR hold_expires_at >= now())
          AND start_time::date = $2::date`,
       [info.staffId, dateISO]
     );

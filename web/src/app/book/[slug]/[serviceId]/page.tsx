@@ -38,11 +38,11 @@ export default async function ServiceBookingPage({
       <p className="mt-1 text-sm text-ink-secondary">{service.duration_minutes} min</p>
 
       <BookingWizard
+        slug={slug}
         businessId={businessId}
         serviceId={serviceId}
         initialDate={today}
         initialSlots={initialSlots}
-        paymentMode={service.payment_mode}
       />
     </div>
   );

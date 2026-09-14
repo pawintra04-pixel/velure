@@ -115,20 +115,34 @@ actually enter details (and possibly complete 3D Secure) client-side.
   `sessions` table (not JWTs — revocable by deleting the row, which
   `logOut` does).
 - `src/app/book/[slug]/` — the customer-facing booking flow, reached by a
-  business's public slug (e.g. `/book/velure-demo-spa`): choose a service →
-  pick a date/time → enter contact details → hold the slot → pay via
-  PromptPay (or skip straight to confirmed for free services) →
-  `src/app/api/stripe/webhook` confirms it. This is the actual MVP core
-  loop from docs/ARCHITECTURE.md, integrated for real (not just proven
-  standalone like the spike). `/book/pay/[bookingId]` and
-  `/book/confirmed/[bookingId]` stay unscoped by slug — they're reached by
-  an unguessable booking id, not by business.
+  business's public slug (e.g. `/book/velure-demo-spa`). **Quick booking**:
+  choose a service → picking a time reserves it immediately
+  (`createQuickHold`, no contact info yet — `customer_id` is nullable on
+  `bookings` for exactly this) → `.../details/[bookingId]` collects name/
+  phone/email and attaches them to the existing hold
+  (`completeBookingDetails`) → pay via PromptPay or card (or skip straight
+  to confirmed for free services) → `src/app/api/stripe/webhook` confirms
+  it. This is the actual MVP core loop from docs/ARCHITECTURE.md, integrated
+  for real (not just proven standalone like the spike). `/book/pay/[id]`
+  and `/book/confirmed/[id]` stay unscoped by slug — reached by an
+  unguessable booking id, not by business.
 - `src/lib/availability.ts` — computes open slots for a service/date.
   **STUB**: business hours are hardcoded (09:00–19:00 Asia/Bangkok) since
   no working-hours data model exists yet (Business Setup engine, not
   built). The slot list is a UI convenience only — the database's overlap
   EXCLUDE constraint is what actually prevents double-booking, so a stale
-  slot losing a race just surfaces as "that time was just taken."
+  slot losing a race just surfaces as "that time was just taken." Also
+  excludes bookings whose `hold_expires_at` has already passed even if
+  their `status` hasn't been swept to `EXPIRED` yet (see next point) — a
+  read can land between two writes and see a not-yet-swept abandoned hold.
+- **Stale-hold sweeping**: quick booking makes abandoned holds more likely
+  (a slot can now be locked with zero contact info attached), and the
+  EXCLUDE constraint only checks `status`, not `hold_expires_at` — so
+  `createQuickHold` sweeps this business's own expired
+  `TEMPORARY_HOLD`/`PAYMENT_PENDING` rows to `EXPIRED` immediately before
+  every insert attempt. Cheap (indexed on `business_id`) and means an
+  abandoned hold can never block a slot forever, without needing an
+  external cron/scheduler.
 - `src/lib/business.ts` — resolves a public booking slug to a business id
   (via `adminPool`, same category of exception as auth — see above).
 - `src/lib/dashboard-data.ts` — all dashboard queries, via
@@ -188,7 +202,4 @@ Not started: customers CRUD UI (only `db/seed.ts` can create these), AI
 onboarding, embed widget, notifications, reschedule (cancel/complete/
 no-show exist, not reschedule), refunds, connecting a Stripe account for a
 newly signed-up business (no UI for it yet), staff-hours/working-hours
-management (still the hardcoded 09:00–19:00 stub in `availability.ts`), a
-"reserve now, fill in details after" quick-booking flow (explicitly
-requested, not yet built — current flow collects contact details before
-creating the hold).
+management (still the hardcoded 09:00–19:00 stub in `availability.ts`).

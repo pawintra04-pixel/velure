@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { fetchSlots, createHold } from "../../actions";
+import { fetchSlots, createQuickHold } from "../../actions";
 import type { Slot } from "@/lib/availability";
 
 function nextDays(n: number): { iso: string; label: string }[] {
@@ -31,17 +31,17 @@ function formatSlotTime(iso: string): string {
 }
 
 export function BookingWizard({
+  slug,
   businessId,
   serviceId,
   initialDate,
   initialSlots,
-  paymentMode,
 }: {
+  slug: string;
   businessId: string;
   serviceId: string;
   initialDate: string;
   initialSlots: Slot[];
-  paymentMode: string;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -49,17 +49,11 @@ export function BookingWizard({
 
   const [selectedDate, setSelectedDate] = useState(initialDate);
   const [slots, setSlots] = useState(initialSlots);
-  const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<"promptpay" | "card">("promptpay");
+  const [reservingSlot, setReservingSlot] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const requiresPayment = paymentMode !== "free";
 
   function selectDate(dateISO: string) {
     setSelectedDate(dateISO);
-    setSelectedSlot(null);
     setError(null);
     startTransition(async () => {
       const next = await fetchSlots(businessId, serviceId, dateISO);
@@ -67,36 +61,35 @@ export function BookingWizard({
     });
   }
 
-  function submit() {
-    if (!selectedSlot) return;
+  // Quick booking: picking a time reserves it immediately (no form first) —
+  // contact details are collected on the next page, after the slot is
+  // already locked in. The DB's overlap EXCLUDE constraint is the actual
+  // guard either way; this is purely about not putting a form between the
+  // customer and a committed time slot.
+  function reserve(slot: Slot) {
     setError(null);
+    setReservingSlot(slot.startTime);
     startTransition(async () => {
-      const result = await createHold({
+      const result = await createQuickHold({
         businessId,
         serviceId,
-        startTime: selectedSlot.startTime,
-        endTime: selectedSlot.endTime,
-        customerName: name,
-        customerPhone: phone,
-        customerEmail: email,
-        paymentMethod,
+        startTime: slot.startTime,
+        endTime: slot.endTime,
       });
 
       if (!result.ok) {
+        setReservingSlot(null);
         if (result.reason === "slot_taken") {
           setError("That time slot was just taken — please choose another.");
           const refreshed = await fetchSlots(businessId, serviceId, selectedDate);
           setSlots(refreshed);
-          setSelectedSlot(null);
         } else {
           setError("Something went wrong. Please try again.");
         }
         return;
       }
 
-      router.push(
-        result.needsPayment ? `/book/pay/${result.bookingId}` : `/book/confirmed/${result.bookingId}`
-      );
+      router.push(`/book/${slug}/details/${result.bookingId}`);
     });
   }
 
@@ -117,7 +110,7 @@ export function BookingWizard({
       </div>
 
       <div>
-        <div className="text-sm text-ink-secondary">Select a time</div>
+        <div className="text-sm text-ink-secondary">Select a time to reserve it instantly</div>
         {slots.length === 0 ? (
           <div className="mt-3 text-sm text-ink-muted">No available times on this day</div>
         ) : (
@@ -125,83 +118,22 @@ export function BookingWizard({
             {slots.map((s) => (
               <button
                 key={s.startTime}
-                onClick={() => setSelectedSlot(s)}
-                className={`rounded-xl border px-3 py-2 text-sm ${
-                  selectedSlot?.startTime === s.startTime
+                onClick={() => reserve(s)}
+                disabled={isPending}
+                className={`rounded-xl border px-3 py-2 text-sm disabled:opacity-50 ${
+                  reservingSlot === s.startTime
                     ? "border-accent bg-accent/10 font-medium"
                     : "border-border text-ink-secondary"
                 }`}
               >
-                {formatSlotTime(s.startTime)}
+                {reservingSlot === s.startTime ? "Reserving..." : formatSlotTime(s.startTime)}
               </button>
             ))}
           </div>
         )}
       </div>
 
-      {selectedSlot && (
-        <div className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-5">
-          <div className="text-sm text-ink-secondary">Your details</div>
-          <input
-            className="rounded-lg border border-border px-3 py-2 text-sm"
-            placeholder="Name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-          <input
-            className="rounded-lg border border-border px-3 py-2 text-sm"
-            placeholder="Phone number"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-          />
-          <input
-            className="rounded-lg border border-border px-3 py-2 text-sm"
-            placeholder="Email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-
-          {requiresPayment && (
-            <div>
-              <div className="text-sm text-ink-secondary">Pay with</div>
-              <div className="mt-2 flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setPaymentMethod("promptpay")}
-                  className={`flex-1 rounded-xl border px-3 py-2 text-sm ${
-                    paymentMethod === "promptpay"
-                      ? "border-accent bg-accent/10 font-medium"
-                      : "border-border text-ink-secondary"
-                  }`}
-                >
-                  PromptPay
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPaymentMethod("card")}
-                  className={`flex-1 rounded-xl border px-3 py-2 text-sm ${
-                    paymentMethod === "card"
-                      ? "border-accent bg-accent/10 font-medium"
-                      : "border-border text-ink-secondary"
-                  }`}
-                >
-                  Card
-                </button>
-              </div>
-            </div>
-          )}
-
-          {error && <div className="text-sm text-[#d03b3b]">{error}</div>}
-          <button
-            onClick={submit}
-            disabled={isPending || !name.trim() || !phone.trim() || !email.trim()}
-            className="rounded-xl bg-accent py-2.5 text-sm font-medium text-accent-ink disabled:opacity-50"
-          >
-            {isPending ? "Processing..." : "Confirm booking"}
-          </button>
-        </div>
-      )}
+      {error && <div className="text-sm text-[#d03b3b]">{error}</div>}
     </div>
   );
 }

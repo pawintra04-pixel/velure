@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireOwner } from "@/lib/auth";
 import { withBusinessContext } from "@/db/client";
+import { isStaffFreeForRange } from "@/lib/staff-availability";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -100,6 +101,70 @@ export async function updateStaffHours(
 
   revalidatePath("/dashboard/staff");
   return { ok: true };
+}
+
+/**
+ * A staff member marking themselves unavailable (lunch, a meeting, a
+ * walk-in already reserved verbally) without needing a fake booking to
+ * hold the time — staff_blocks has its own EXCLUDE constraint against
+ * itself, and isStaffFreeForRange checks it against bookings/class
+ * sessions too before insert (see lib/staff-availability.ts for what
+ * that can and can't guarantee).
+ */
+export async function createStaffBlock(
+  _prev: ActionResult | null,
+  formData: FormData
+): Promise<ActionResult> {
+  const owner = await requireOwner();
+
+  const staffId = String(formData.get("staffId") ?? "");
+  const dateISO = String(formData.get("date") ?? "");
+  const startHHMM = String(formData.get("start") ?? "");
+  const endHHMM = String(formData.get("end") ?? "");
+  const reason = String(formData.get("reason") ?? "").trim();
+
+  if (!staffId || !dateISO || !startHHMM || !endHHMM) {
+    return { ok: false, error: "Date, start, and end time are required." };
+  }
+  if (startHHMM >= endHHMM) {
+    return { ok: false, error: "End time must be after start time." };
+  }
+
+  const startTime = new Date(`${dateISO}T${startHHMM}:00+07:00`);
+  const endTime = new Date(`${dateISO}T${endHHMM}:00+07:00`);
+
+  try {
+    await withBusinessContext(owner.businessId, async (c) => {
+      if (!(await isStaffFreeForRange(c, staffId, startTime.toISOString(), endTime.toISOString()))) {
+        throw new Error("slot_taken");
+      }
+      await c.query(
+        `INSERT INTO staff_blocks (business_id, staff_id, start_time, end_time, reason)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [owner.businessId, staffId, startTime.toISOString(), endTime.toISOString(), reason || null]
+      );
+    });
+  } catch (err) {
+    if ((err as { code?: string }).code === "23P01" || (err as Error).message === "slot_taken") {
+      return { ok: false, error: "That staff member already has something scheduled at this time." };
+    }
+    console.error("createStaffBlock failed", err);
+    return { ok: false, error: "Something went wrong. Please try again." };
+  }
+
+  revalidatePath("/dashboard/staff");
+  return { ok: true };
+}
+
+export async function deleteStaffBlock(formData: FormData): Promise<void> {
+  const owner = await requireOwner();
+  const blockId = String(formData.get("blockId") ?? "");
+
+  await withBusinessContext(owner.businessId, (c) =>
+    c.query(`DELETE FROM staff_blocks WHERE id = $1`, [blockId])
+  );
+
+  revalidatePath("/dashboard/staff");
 }
 
 export async function deleteStaff(formData: FormData): Promise<void> {

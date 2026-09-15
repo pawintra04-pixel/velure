@@ -1,7 +1,13 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { updateStaffHours, deleteStaff, type ActionResult } from "./actions";
+import {
+  updateStaffHours,
+  deleteStaff,
+  createStaffBlock,
+  deleteStaffBlock,
+  type ActionResult,
+} from "./actions";
 
 type DayHours = {
   day_of_week: number;
@@ -12,7 +18,23 @@ type DayHours = {
   break_end: string | null;
 };
 
-export type Staff = { id: string; name: string; service_names: string[]; hours: DayHours[] };
+type Block = { id: string; start_time: string; end_time: string; reason: string | null };
+
+export type Staff = {
+  id: string;
+  name: string;
+  service_names: string[];
+  hours: DayHours[];
+  blocks: Block[];
+};
+
+function formatBlockTime(iso: string): string {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Bangkok",
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(iso));
+}
 
 const DAY_LABELS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -24,6 +46,10 @@ export function StaffCard({ staff }: { staff: Staff }) {
   const [expanded, setExpanded] = useState(false);
   const [state, formAction, pending] = useActionState<ActionResult | null, FormData>(
     updateStaffHours,
+    null
+  );
+  const [blockState, blockFormAction, blockPending] = useActionState<ActionResult | null, FormData>(
+    createStaffBlock,
     null
   );
   const [offDays, setOffDays] = useState<Record<number, boolean>>(
@@ -122,6 +148,62 @@ export function StaffCard({ staff }: { staff: Staff }) {
             {pending ? "Saving..." : "Save hours"}
           </button>
         </form>
+      )}
+
+      {expanded && (
+        <div className="mt-5 flex flex-col gap-3 border-t border-border pt-5">
+          <div className="text-sm font-medium text-ink-secondary">Blocked time</div>
+          <p className="text-xs text-ink-muted">
+            Lunch, a meeting, or anything else that should make this person unbookable without
+            creating a fake booking.
+          </p>
+
+          <div className="flex flex-col gap-2">
+            {staff.blocks.map((b) => (
+              <div
+                key={b.id}
+                className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm"
+              >
+                <span>
+                  {formatBlockTime(b.start_time)} – {formatBlockTime(b.end_time)}
+                  {b.reason && <span className="text-ink-muted"> · {b.reason}</span>}
+                </span>
+                <form action={deleteStaffBlock}>
+                  <input type="hidden" name="blockId" value={b.id} />
+                  <button type="submit" className="text-xs text-ink-muted hover:text-ink-secondary">
+                    Remove
+                  </button>
+                </form>
+              </div>
+            ))}
+            {staff.blocks.length === 0 && (
+              <div className="text-sm text-ink-muted">No upcoming blocks.</div>
+            )}
+          </div>
+
+          <form action={blockFormAction} className="flex flex-wrap items-center gap-2">
+            <input type="hidden" name="staffId" value={staff.id} />
+            <input type="date" name="date" className="rounded-lg border border-border px-2 py-1.5 text-sm" />
+            <input type="time" name="start" className="rounded-lg border border-border px-2 py-1.5 text-sm" />
+            <span className="text-ink-muted">to</span>
+            <input type="time" name="end" className="rounded-lg border border-border px-2 py-1.5 text-sm" />
+            <input
+              name="reason"
+              placeholder="Reason (optional)"
+              className="min-w-0 flex-1 rounded-lg border border-border px-2 py-1.5 text-sm"
+            />
+            <button
+              type="submit"
+              disabled={blockPending}
+              className="rounded-xl border border-border px-3 py-1.5 text-sm font-medium hover:bg-page disabled:opacity-50"
+            >
+              Add block
+            </button>
+          </form>
+          {blockState && !blockState.ok && (
+            <div className="text-sm text-[#d03b3b]">{blockState.error}</div>
+          )}
+        </div>
       )}
     </div>
   );

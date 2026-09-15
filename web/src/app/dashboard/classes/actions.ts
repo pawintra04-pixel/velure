@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireOwner } from "@/lib/auth";
 import { withBusinessContext } from "@/db/client";
+import { isStaffFreeForRange } from "@/lib/staff-availability";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -35,6 +36,16 @@ export async function createClassSession(
       const startTime = new Date(`${dateISO}T${timeHHMM}:00+07:00`);
       const endTime = new Date(startTime.getTime() + service.duration_minutes * 60_000);
 
+      // class_sessions' own EXCLUDE constraint only guards it against
+      // *other* class sessions — a single Postgres constraint can't span
+      // tables, so an existing 1:1 booking or a block for this staff
+      // member wouldn't otherwise be checked at all before this insert.
+      if (
+        !(await isStaffFreeForRange(c, staffId, startTime.toISOString(), endTime.toISOString()))
+      ) {
+        throw new Error("slot_taken");
+      }
+
       await c.query(
         `INSERT INTO class_sessions (business_id, service_id, staff_id, start_time, end_time, capacity)
          VALUES ($1, $2, $3, $4, $5, $6)`,
@@ -45,9 +56,10 @@ export async function createClassSession(
     if ((err as Error).message === "not_a_class") {
       return { ok: false, error: "That service isn't set up as a class (needs a capacity of 2 or more)." };
     }
-    // The staff-overlap exclusion constraint — this staff member already
-    // has a session or booking at this time.
-    if ((err as { code?: string }).code === "23P01") {
+    // The staff-overlap exclusion constraint (another class session) or
+    // the isStaffFreeForRange pre-check (a booking or block) — either way
+    // this staff member already has something at this time.
+    if ((err as { code?: string }).code === "23P01" || (err as Error).message === "slot_taken") {
       return { ok: false, error: "That staff member already has something scheduled at this time." };
     }
     console.error("createClassSession failed", err);

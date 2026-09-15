@@ -24,7 +24,14 @@ export default async function StaffPage() {
                      'break_start', sh.break_start, 'break_end', sh.break_end
                    ) ORDER BY sh.day_of_week
                  ), '[]')
-               FROM staff_hours sh WHERE sh.staff_id = st.id) AS hours
+               FROM staff_hours sh WHERE sh.staff_id = st.id) AS hours,
+              (SELECT coalesce(
+                 json_agg(
+                   json_build_object(
+                     'id', sb.id, 'start_time', sb.start_time, 'end_time', sb.end_time, 'reason', sb.reason
+                   ) ORDER BY sb.start_time
+                 ), '[]')
+               FROM staff_blocks sb WHERE sb.staff_id = st.id AND sb.end_time >= now()) AS blocks
        FROM staff st
        ORDER BY st.created_at`
     );

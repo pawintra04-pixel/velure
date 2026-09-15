@@ -144,6 +144,19 @@ actually enter details (and possibly complete 3D Secure) client-side.
     booking otherwise lets one visitor grab every remaining slot in a day
     with zero contact info attached, making a business look fully booked
     when it isn't.
+  - `015_manual_booking_and_blocks.sql`: `bookings.created_by_staff` (a
+    flag, no behavior change) and `staff_blocks` — a staff member marking
+    themselves unavailable (lunch, a meeting) without a fake booking.
+    `staff_blocks` has its own EXCLUDE constraint against itself, same
+    shape as `bookings`'/`class_sessions`'; a staff member's time is now
+    genuinely spoken for across three separate tables, each fully
+    protected against itself but not against the other two by the
+    database alone — see `lib/staff-availability.ts`, the shared
+    cross-table pre-check every insert into any of the three now runs
+    (also closes a real gap found while building this: creating a class
+    session never checked for a conflicting 1:1 booking at all, since
+    `class_sessions`' own exclusion constraint only ever guarded it
+    against *other* class sessions).
 - `src/db/client.ts` — `appPool` (the non-superuser `app_user` role RLS
   actually applies to) and `withBusinessContext(businessId, fn)`, which
   every business-scoped query should go through. `adminPool` bypasses RLS
@@ -258,6 +271,20 @@ actually enter details (and possibly complete 3D Secure) client-side.
   hours and one optional break per day (`updateStaffHours` in
   `staff/actions.ts`), read by `availability.ts`. Setting a service's
   capacity to 2+ (also on this page) marks it a class — see `classes/`.
+  The same panel also has a "Blocked time" section (`createStaffBlock`/
+  `deleteStaffBlock`) — lunch, a meeting, anything that should make a
+  staff member unbookable without a fake booking; read by
+  `availability.ts` the same way class sessions are.
+- `src/app/dashboard/bookings/` also has a "+ New booking" form
+  (`NewBookingForm.tsx`, `createManualBooking` in `actions.ts`) — real
+  shops keep taking bookings by phone/LINE/walk-in regardless of what
+  online flow exists, and Velure only actually prevents double-booking if
+  those get entered into the same system. Skips the online hold→pay flow
+  entirely and goes straight to `CONFIRMED` (a staff member creating this
+  is presumed to be collecting payment themselves), reuses the same
+  customer-upsert-by-phone logic as the online flow, and is guarded by the
+  same `isStaffFreeForRange` pre-check plus the real EXCLUDE constraint on
+  insert.
 - `src/app/dashboard/classes/` — schedule sessions for class-type services
   (pick the service, a staff member, a date/time — end time comes from the
   service's duration). Removing a session with existing bookings is
@@ -357,9 +384,19 @@ released back on cancel/expiry/payment-failure — verified directly:
 filled a 3-seat class to capacity, confirmed a 4th reservation was
 refused, cancelled one attendee and confirmed the freed seat could be
 re-claimed, and confirmed a 1:1 hold can't be created over an active
-class session's time). Booking confirmation emails are coded and wired
-into both confirmation paths but genuinely untested — no `RESEND_API_KEY`
-supplied yet.
+class session's time). Also done, after an external architecture review:
+expired-hold sweeping moved from an application-remembered call into a
+DB trigger (verified: a stale hold inserted with no app code involved
+still gets cleared by an unrelated insert for the same staff), a cap on
+un-completed holds per anonymous visitor (verified live: a 3rd hold is
+refused without touching the slot), manual booking by staff for
+phone/walk-in customers (verified live, including that it's rejected
+when it conflicts with an existing booking), and staff block time for
+lunch/meetings/etc. (verified live: a block removes those times from the
+public booking page, and creating a block that conflicts with something
+else is rejected the same way a conflicting booking is). Booking
+confirmation emails are coded and wired into both confirmation paths but
+genuinely untested — no `RESEND_API_KEY` supplied yet.
 
 Not started: customers CRUD UI (only `db/seed.ts` can create these), AI
 onboarding, embed widget, refunds, connecting a Stripe account for a newly

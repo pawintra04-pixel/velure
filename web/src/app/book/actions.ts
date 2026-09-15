@@ -6,6 +6,7 @@ import { getAvailableSlots, type Slot } from "@/lib/availability";
 import { sendBookingConfirmationEmail } from "@/lib/email";
 import { claimClassSeat, releaseClassSeat } from "@/lib/classes";
 import { getOrCreateAnonId } from "@/lib/anon-session";
+import { isStaffFreeForRange } from "@/lib/staff-availability";
 
 // Quick booking lets a visitor reserve a slot before typing anything —
 // which also means nothing stops one visitor from holding every remaining
@@ -67,19 +68,13 @@ export async function createQuickHold(input: {
       );
       if (!assignment) throw new Error("no_staff_assigned");
 
-      // A class session occupies its staff member exclusively for its
-      // duration, but (see migration 013's note) class-tagged bookings no
-      // longer participate in the DB-level exclusion constraint — so a 1:1
-      // hold has to check for an overlapping class session itself. Unlike
-      // the exclusion constraint, this is a plain check-then-insert: a
-      // narrow race against a class being scheduled at this exact moment
-      // is possible but not closed here.
-      const { rows: [conflict] } = await c.query(
-        `SELECT 1 FROM class_sessions
-         WHERE staff_id = $1 AND tstzrange(start_time, end_time) && tstzrange($2, $3)`,
-        [assignment.staff_id, startTime, endTime]
-      );
-      if (conflict) throw new Error("slot_taken");
+      // A class session or a block occupies its staff member exclusively
+      // too, but (see migration 013's note) those live in separate tables
+      // from bookings' own exclusion constraint — see
+      // lib/staff-availability.ts for what this can and can't guarantee.
+      if (!(await isStaffFreeForRange(c, assignment.staff_id, startTime, endTime))) {
+        throw new Error("slot_taken");
+      }
 
       const amount =
         service.payment_mode === "free"

@@ -126,6 +126,9 @@ export async function getAvailableSlots(
          AND ($3::uuid IS NULL OR id != $3::uuid)
        UNION ALL
        SELECT start_time, end_time FROM class_sessions
+       WHERE staff_id = $1 AND start_time::date = $2::date
+       UNION ALL
+       SELECT start_time, end_time FROM staff_blocks
        WHERE staff_id = $1 AND start_time::date = $2::date`,
       [info.staffId, dateISO, excludeBookingId ?? null]
     );

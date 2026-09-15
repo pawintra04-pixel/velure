@@ -1,4 +1,5 @@
 import { requireOwner } from "@/lib/auth";
+import { withBusinessContext } from "@/db/client";
 import {
   getBookingsInRange,
   bangkokMidnight,
@@ -12,6 +13,7 @@ import { BookingRow } from "./BookingRow";
 import { DayView } from "./DayView";
 import { WeekView } from "./WeekView";
 import { MonthView } from "./MonthView";
+import { NewBookingForm } from "./NewBookingForm";
 
 function toISO(d: Date): string {
   return d.toISOString();
@@ -25,9 +27,15 @@ export default async function BookingsPage({
   const owner = await requireOwner();
   const { view = "list", date = todayISOInBangkok() } = await searchParams;
 
+  const { services, staff } = await withBusinessContext(owner.businessId, async (c) => {
+    const servicesResult = await c.query(`SELECT id, name FROM services ORDER BY name`);
+    const staffResult = await c.query(`SELECT id, name FROM staff ORDER BY name`);
+    return { services: servicesResult.rows, staff: staffResult.rows };
+  });
+
   return (
     <div className="mx-auto max-w-5xl px-6 py-8">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-semibold">Bookings</h1>
             <p className="mt-1 text-sm text-ink-secondary">
@@ -35,6 +43,10 @@ export default async function BookingsPage({
             </p>
           </div>
           <ViewTabs active={view} date={date} />
+        </div>
+
+        <div className="mt-4">
+          <NewBookingForm services={services} staff={staff} />
         </div>
 
         <div className="mt-6">

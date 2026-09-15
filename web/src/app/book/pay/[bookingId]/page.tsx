@@ -20,7 +20,7 @@ export default async function PaymentPage({
 
   const { rows: [booking] } = await adminPool.query(
     `SELECT b.id, b.status, b.amount, b.stripe_payment_intent_id, biz.stripe_account_id,
-            biz.name AS business_name, biz.slug AS business_slug, biz.logo_url AS business_logo_url
+            biz.id AS business_id, biz.name AS business_name, biz.slug AS business_slug, biz.logo_url AS business_logo_url
      FROM bookings b
      JOIN businesses biz ON biz.id = b.business_id
      WHERE b.id = $1`,
@@ -41,7 +41,7 @@ export default async function PaymentPage({
 
   return (
     <>
-      <BookingHeader businessName={booking.business_name} slug={booking.business_slug} logoUrl={booking.business_logo_url} />
+      <BookingHeader businessName={booking.business_name} slug={booking.business_slug} businessId={booking.business_id} logoUrl={booking.business_logo_url} />
       <div className="mx-auto flex max-w-md flex-col items-center px-6 py-10 text-center">
       {isCard ? (
         <>

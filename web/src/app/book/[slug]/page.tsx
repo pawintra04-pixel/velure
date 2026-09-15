@@ -24,7 +24,7 @@ export default async function BookServicesPage({
 
   return (
     <>
-      <BookingHeader businessName={business.name} slug={slug} logoUrl={business.logo_url} />
+      <BookingHeader businessName={business.name} slug={slug} businessId={business.id} logoUrl={business.logo_url} />
       <div className="mx-auto max-w-5xl px-6 py-10 lg:px-10">
         <h1 className="text-2xl font-semibold">Choose a service</h1>
         {business.description && (

@@ -162,6 +162,18 @@ actually enter details (and possibly complete 3D Secure) client-side.
     account (LINE Login), never derived from their phone/email, so this
     is additive to the existing customer record rather than a new
     identity table.
+  - `017_customer_accounts.sql`: `customers.password_hash` and
+    `customer_sessions` — real customer accounts, scoped per business
+    (same shape as `owners`/`sessions` from `009_auth.sql`, not RLS'd for
+    the same reason: looking someone up by email/session token
+    necessarily precedes knowing their business). Deliberately not a
+    unified cross-tenant identity — a customer signs up/logs in on one
+    specific shop's booking site and sees only their bookings with that
+    shop, matching how `customers` already dedupes per business, not
+    globally. Quick-booking (no account) is untouched by this — both
+    coexist, and signing up later claims the existing quick-booked
+    customer record by matching email rather than creating a disconnected
+    second one.
 - `src/db/client.ts` — `appPool` (the non-superuser `app_user` role RLS
   actually applies to) and `withBusinessContext(businessId, fn)`, which
   every business-scoped query should go through. `adminPool` bypasses RLS
@@ -217,17 +229,39 @@ actually enter details (and possibly complete 3D Secure) client-side.
   was actually asked.
 - `/book/manage/[bookingId]` — customer self-service reschedule/cancel,
   same unguessable-id-as-auth pattern as `/book/pay` and `/book/confirmed`
-  (the id itself, long and random, stands in for a session since customers
-  never log in). `src/app/book/manage/[bookingId]/actions.ts` re-validates
-  everything server-side — status is still `CONFIRMED`, and enough hours
-  remain per the business's `reschedule_cutoff_hours`/`cancel_cutoff_hours`
-  — even though the page only renders the buttons when already allowed,
-  because this is a public link and the page could be stale by the time it's
-  clicked. Reschedule reuses `getAvailableSlots` (now taking an optional
-  `excludeBookingId` so the booking being moved doesn't block its own
-  current slot) and, like the original booking flow, catches Postgres
-  `23P01` (the overlap EXCLUDE constraint) on the UPDATE itself — a slot can
-  still lose a race after the slot list was fetched.
+  (the id itself, long and random, stands in for a session, so this page
+  needs no login and works identically for a quick-booking guest or a
+  signed-up customer). `src/app/book/manage/[bookingId]/actions.ts`
+  re-validates everything server-side — status is still `CONFIRMED`, and
+  enough hours remain per the business's `reschedule_cutoff_hours`/
+  `cancel_cutoff_hours` — even though the page only renders the buttons
+  when already allowed, because this is a public link and the page could
+  be stale by the time it's clicked. Reschedule reuses `getAvailableSlots`
+  (now taking an optional `excludeBookingId` so the booking being moved
+  doesn't block its own current slot) and, like the original booking flow,
+  catches Postgres `23P01` (the overlap EXCLUDE constraint) on the UPDATE
+  itself — a slot can still lose a race after the slot list was fetched.
+- `/book/[slug]/{signup,login,account}` — real customer accounts, per
+  business (see migration 017's note on why per-business, not unified).
+  `lib/customer-auth.ts` mirrors `lib/auth.ts`'s owner-auth code almost
+  exactly (scrypt hashing straight-up reused, not reimplemented; opaque
+  session tokens in an httpOnly cookie, `velure_customer_session` — a
+  distinct cookie from the owner's `velure_session`, so being logged in as
+  an owner and a customer in the same browser doesn't collide) but
+  `requireCustomer(slug, businessId)` additionally checks the logged-in
+  customer's `business_id` matches the shop whose page they're on, not
+  just "is someone logged in" — a session from shop A means nothing on
+  shop B's booking site. `/account` lists every booking for that customer
+  (RLS-scoped by business even though the customer id already came from a
+  verified session — defense in depth, same as everywhere else) and links
+  each one to the *same* `/book/manage/[bookingId]` page guest customers
+  already use, rather than duplicating reschedule/cancel UI. Signing up
+  claims an existing quick-booked customer record by matching email
+  (setting `password_hash` on it if none exists yet) rather than creating
+  a disconnected second one. `BookingHeader` shows "My bookings" / "Log in"
+  on every `/book/*` page (itself now an async Server Component that
+  checks the session, rather than every one of its ~9 call sites having
+  to fetch and pass it down).
 - `src/lib/email.ts` — fire-and-forget booking confirmation email via
   Resend. Every call site (`book/actions.ts`'s free-service instant-confirm
   path, and the Stripe webhook's `payment_intent.succeeded` handler) treats
@@ -455,8 +489,19 @@ Login connect flow itself (the part that doesn't need a real LINE account
 to verify) has been checked live: the connect endpoint correctly refuses
 with 501 and the "Connect LINE" UI stays hidden entirely when
 unconfigured, rather than either failing loudly or showing a dead link.
+Also done: real per-business customer accounts (`/book/[slug]/signup`,
+`/login`, `/account`) so a registered customer can see every booking
+they've made with a shop in one list rather than hunting down each
+confirmation email — every reschedule/cancel action still runs through
+the same `/book/manage/[bookingId]` page guest customers already use, not
+a duplicate. Verified live end to end: signed up, booked, confirmed the
+booking appeared in the account list and linked to the correct manage
+page, logged out, and logged back in successfully; also confirmed
+`/account` redirects to `/login` when not signed in.
 
-Not started: customers CRUD UI (only `db/seed.ts` can create these), AI
+Not started: customers CRUD UI *for owners* (only `db/seed.ts` and
+customers signing themselves up can create these — there's still no
+dashboard page for an owner to browse/add/edit customers directly), AI
 onboarding, embed widget, and Velure's own SaaS subscription billing
 (charging business owners monthly/yearly — discussed, not designed).
 Known gaps: refunds are manual only (no automatic refund on cancel, since

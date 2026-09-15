@@ -44,7 +44,9 @@ export function ClassSessionPicker({
         setError(
           result.reason === "class_full"
             ? "That session just filled up — please pick another."
-            : "Something went wrong. Please try again."
+            : result.reason === "too_many_holds"
+              ? "You already have a couple of reservations in progress — complete or let one expire before reserving another."
+              : "Something went wrong. Please try again."
         );
         return;
       }

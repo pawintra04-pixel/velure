@@ -108,6 +108,8 @@ export function BookingWizard({
           setError("That time slot was just taken — please choose another.");
           const refreshed = await fetchSlots(businessId, serviceId, selectedDate);
           setSlots(refreshed);
+        } else if (result.reason === "too_many_holds") {
+          setError("You already have a couple of reservations in progress — complete or let one expire before reserving another.");
         } else {
           setError("Something went wrong. Please try again.");
         }

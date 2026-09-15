@@ -1,36 +1,19 @@
 "use server";
 
-import type { PoolClient } from "pg";
 import { withBusinessContext } from "@/db/client";
 import { stripe } from "@/lib/stripe";
 import { getAvailableSlots, type Slot } from "@/lib/availability";
 import { sendBookingConfirmationEmail } from "@/lib/email";
 import { claimClassSeat, releaseClassSeat } from "@/lib/classes";
+import { getOrCreateAnonId } from "@/lib/anon-session";
 
-/**
- * Sweeps this business's own abandoned holds to EXPIRED (same reasoning as
- * createQuickHold's own sweep) and releases any class seat a swept
- * class-attendee booking was holding — otherwise a seat taken by an
- * abandoned hold would never come back, since class_sessions.seats_booked
- * only ever decrements through explicit release calls, never a query.
- */
-async function sweepExpiredHolds(c: PoolClient): Promise<void> {
-  const { rows: swept } = await c.query<{ class_session_id: string | null }>(
-    `UPDATE bookings SET status = 'EXPIRED'
-     WHERE status IN ('TEMPORARY_HOLD', 'PAYMENT_PENDING') AND hold_expires_at < now()
-     RETURNING class_session_id`
-  );
-  const counts = new Map<string, number>();
-  for (const row of swept) {
-    if (row.class_session_id) counts.set(row.class_session_id, (counts.get(row.class_session_id) ?? 0) + 1);
-  }
-  for (const [sessionId, count] of counts) {
-    await c.query(`UPDATE class_sessions SET seats_booked = seats_booked - $1 WHERE id = $2`, [
-      count,
-      sessionId,
-    ]);
-  }
-}
+// Quick booking lets a visitor reserve a slot before typing anything —
+// which also means nothing stops one visitor from holding every remaining
+// slot in a day with no contact info attached, making a business look
+// fully booked when it isn't. Capped per business per anonymous visitor
+// (see lib/anon-session.ts), not globally — legitimately browsing several
+// businesses shouldn't count against each other.
+const MAX_ACTIVE_HOLDS_PER_VISITOR = 2;
 
 export async function fetchSlots(
   businessId: string,
@@ -42,7 +25,7 @@ export async function fetchSlots(
 
 export type QuickHoldResult =
   | { ok: true; bookingId: string }
-  | { ok: false; reason: "slot_taken" | "server_error" };
+  | { ok: false; reason: "slot_taken" | "too_many_holds" | "server_error" };
 
 /**
  * "Quick booking": reserve the slot the instant it's picked, with no
@@ -61,12 +44,16 @@ export async function createQuickHold(input: {
   endTime: string;
 }): Promise<QuickHoldResult> {
   const { businessId, serviceId, startTime, endTime } = input;
+  const anonId = await getOrCreateAnonId();
 
   try {
     const bookingId = await withBusinessContext(businessId, async (c) => {
-      // Cheap: indexed on business_id, and only matters right when a new
-      // insert is about to contend for the same row.
-      await sweepExpiredHolds(c);
+      const { rows: [{ count }] } = await c.query<{ count: string }>(
+        `SELECT count(*) FROM bookings
+         WHERE business_id = $1 AND anon_id = $2 AND status IN ('TEMPORARY_HOLD', 'PAYMENT_PENDING')`,
+        [businessId, anonId]
+      );
+      if (Number(count) >= MAX_ACTIVE_HOLDS_PER_VISITOR) throw new Error("too_many_holds");
 
       const { rows: [service] } = await c.query(
         `SELECT price_amount, payment_mode, deposit_amount FROM services WHERE id = $1`,
@@ -103,10 +90,19 @@ export async function createQuickHold(input: {
 
       const { rows: [booking] } = await c.query(
         `INSERT INTO bookings
-           (business_id, service_id, staff_id, start_time, end_time, status, hold_expires_at, amount)
-         VALUES ($1, $2, $3, $4, $5, 'TEMPORARY_HOLD', $6, $7)
+           (business_id, service_id, staff_id, start_time, end_time, status, hold_expires_at, amount, anon_id)
+         VALUES ($1, $2, $3, $4, $5, 'TEMPORARY_HOLD', $6, $7, $8)
          RETURNING id`,
-        [businessId, serviceId, assignment.staff_id, startTime, endTime, new Date(Date.now() + 10 * 60_000), amount]
+        [
+          businessId,
+          serviceId,
+          assignment.staff_id,
+          startTime,
+          endTime,
+          new Date(Date.now() + 10 * 60_000),
+          amount,
+          anonId,
+        ]
       );
       return booking.id;
     });
@@ -116,6 +112,9 @@ export async function createQuickHold(input: {
     if ((err as { code?: string }).code === "23P01" || (err as Error).message === "slot_taken") {
       return { ok: false, reason: "slot_taken" };
     }
+    if ((err as Error).message === "too_many_holds") {
+      return { ok: false, reason: "too_many_holds" };
+    }
     console.error("createQuickHold failed", err);
     return { ok: false, reason: "server_error" };
   }
@@ -123,7 +122,7 @@ export async function createQuickHold(input: {
 
 export type ReserveSeatResult =
   | { ok: true; bookingId: string }
-  | { ok: false; reason: "class_full" | "server_error" };
+  | { ok: false; reason: "class_full" | "too_many_holds" | "server_error" };
 
 /**
  * Class-booking equivalent of createQuickHold: claims one seat on an
@@ -137,10 +136,16 @@ export async function reserveClassSeat(input: {
   classSessionId: string;
 }): Promise<ReserveSeatResult> {
   const { businessId, classSessionId } = input;
+  const anonId = await getOrCreateAnonId();
 
   try {
     const bookingId = await withBusinessContext(businessId, async (c) => {
-      await sweepExpiredHolds(c);
+      const { rows: [{ count }] } = await c.query<{ count: string }>(
+        `SELECT count(*) FROM bookings
+         WHERE business_id = $1 AND anon_id = $2 AND status IN ('TEMPORARY_HOLD', 'PAYMENT_PENDING')`,
+        [businessId, anonId]
+      );
+      if (Number(count) >= MAX_ACTIVE_HOLDS_PER_VISITOR) throw new Error("too_many_holds");
 
       const { rows: [session] } = await c.query(
         `SELECT service_id, staff_id, start_time, end_time FROM class_sessions WHERE id = $1`,
@@ -164,8 +169,8 @@ export async function reserveClassSeat(input: {
 
       const { rows: [booking] } = await c.query(
         `INSERT INTO bookings
-           (business_id, service_id, staff_id, start_time, end_time, status, hold_expires_at, amount, class_session_id)
-         VALUES ($1, $2, $3, $4, $5, 'TEMPORARY_HOLD', $6, $7, $8)
+           (business_id, service_id, staff_id, start_time, end_time, status, hold_expires_at, amount, class_session_id, anon_id)
+         VALUES ($1, $2, $3, $4, $5, 'TEMPORARY_HOLD', $6, $7, $8, $9)
          RETURNING id`,
         [
           businessId,
@@ -176,6 +181,7 @@ export async function reserveClassSeat(input: {
           new Date(Date.now() + 10 * 60_000),
           amount,
           classSessionId,
+          anonId,
         ]
       );
       return booking.id;
@@ -185,6 +191,9 @@ export async function reserveClassSeat(input: {
   } catch (err) {
     if ((err as Error).message === "class_full") {
       return { ok: false, reason: "class_full" };
+    }
+    if ((err as Error).message === "too_many_holds") {
+      return { ok: false, reason: "too_many_holds" };
     }
     console.error("reserveClassSeat failed", err);
     return { ok: false, reason: "server_error" };

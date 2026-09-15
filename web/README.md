@@ -124,6 +124,26 @@ actually enter details (and possibly complete 3D Secure) client-side.
     resulting gap (a 1:1 hold racing a brand-new class session is checked
     at the application level, not atomically, unlike every other overlap
     in this schema).
+  - `014_sweep_trigger_and_rate_limit.sql`: hardening after an external
+    architecture review. (a) Moves "sweep expired holds before they can
+    block a slot" from something every write path had to remember to call
+    in TypeScript (`sweepExpiredHolds`, now deleted) into a `BEFORE INSERT`
+    trigger on `bookings` — can't be forgotten by a future write path
+    (manual booking by staff, an import) the way a function call could be.
+    A partial-index predicate can't reference `now()`, so the exclusion
+    constraint itself can never encode "expired" directly — a trigger is
+    the correct place for this, not a workaround. Scoped to `NEW.staff_id`
+    and INSERT-only (the UPDATE/reschedule path already surfaces a stale
+    collision as an ordinary "that time was just taken" via the
+    constraint, so it doesn't need this, and running it on UPDATE risked
+    the trigger's own internal `UPDATE ... SET status = 'EXPIRED'`
+    re-triggering itself). (b) Adds `bookings.anon_id` (a random id set in
+    a cookie on first visit to the booking flow, see `lib/anon-session.ts`)
+    and caps active un-completed holds per anonymous visitor per business
+    at 2 (`MAX_ACTIVE_HOLDS_PER_VISITOR` in `book/actions.ts`) — quick
+    booking otherwise lets one visitor grab every remaining slot in a day
+    with zero contact info attached, making a business look fully booked
+    when it isn't.
 - `src/db/client.ts` — `appPool` (the non-superuser `app_user` role RLS
   actually applies to) and `withBusinessContext(businessId, fn)`, which
   every business-scoped query should go through. `adminPool` bypasses RLS

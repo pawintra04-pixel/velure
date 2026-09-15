@@ -5,8 +5,92 @@ import { requireOwner } from "@/lib/auth";
 import { withBusinessContext } from "@/db/client";
 import { releaseClassSeat } from "@/lib/classes";
 import { isStaffFreeForRange } from "@/lib/staff-availability";
+import { stripe } from "@/lib/stripe";
 
 export type ManualBookingResult = { ok: true } | { ok: false; error: string };
+
+export type RefundResult = { ok: true } | { ok: false; error: string };
+
+/**
+ * Deliberately manual, not automatic on cancel — refund policy varies by
+ * business (deposit forfeited? full refund inside 24h? case by case?) and
+ * this app doesn't model one, so an owner decides per booking rather than
+ * money moving without a human choosing to move it. One refund per
+ * booking in this pass (full or partial) — no support yet for issuing a
+ * second partial refund on top of a first.
+ */
+export async function refundBooking(bookingId: string, amountBaht: number | null): Promise<RefundResult> {
+  const owner = await requireOwner();
+
+  let paymentIntentId: string;
+  let stripeAccountId: string;
+  let bookingAmount: number;
+  try {
+    const result = await withBusinessContext(owner.businessId, async (c) => {
+      const { rows: [booking] } = await c.query<{
+        stripe_payment_intent_id: string | null;
+        amount: number;
+        status: string;
+        stripe_account_id: string | null;
+      }>(
+        `SELECT b.stripe_payment_intent_id, b.amount, b.status, biz.stripe_account_id
+         FROM bookings b JOIN businesses biz ON biz.id = b.business_id
+         WHERE b.id = $1`,
+        [bookingId]
+      );
+      if (!booking || !booking.stripe_payment_intent_id || !booking.stripe_account_id) {
+        throw new Error("no_payment");
+      }
+      if (!["CONFIRMED", "COMPLETED", "CANCELLED", "NO_SHOW"].includes(booking.status)) {
+        throw new Error("not_refundable");
+      }
+      return {
+        paymentIntentId: booking.stripe_payment_intent_id,
+        stripeAccountId: booking.stripe_account_id,
+        bookingAmount: booking.amount,
+      };
+    });
+    paymentIntentId = result.paymentIntentId;
+    stripeAccountId = result.stripeAccountId;
+    bookingAmount = result.bookingAmount;
+  } catch (err) {
+    if ((err as Error).message === "no_payment") {
+      return { ok: false, error: "This booking has no payment to refund." };
+    }
+    if ((err as Error).message === "not_refundable") {
+      return { ok: false, error: "This booking can't be refunded from its current status." };
+    }
+    console.error("refundBooking lookup failed", err);
+    return { ok: false, error: "Something went wrong. Please try again." };
+  }
+
+  const refundAmountSatang = amountBaht != null ? Math.round(amountBaht * 100) : undefined;
+  if (refundAmountSatang !== undefined && (refundAmountSatang <= 0 || refundAmountSatang > bookingAmount)) {
+    return { ok: false, error: "Refund amount must be between 0 and the amount paid." };
+  }
+
+  try {
+    await stripe.refunds.create(
+      { payment_intent: paymentIntentId, ...(refundAmountSatang !== undefined ? { amount: refundAmountSatang } : {}) },
+      { stripeAccount: stripeAccountId }
+    );
+  } catch (err) {
+    console.error("Stripe refund failed", err);
+    return { ok: false, error: "Stripe refused the refund. Check the payment in your Stripe dashboard." };
+  }
+
+  const isFull = refundAmountSatang === undefined || refundAmountSatang === bookingAmount;
+  await withBusinessContext(owner.businessId, (c) =>
+    c.query(`UPDATE bookings SET status = $1 WHERE id = $2`, [
+      isFull ? "REFUNDED" : "PARTIALLY_REFUNDED",
+      bookingId,
+    ])
+  );
+
+  revalidatePath("/dashboard/bookings");
+  revalidatePath("/dashboard");
+  return { ok: true };
+}
 
 /**
  * Staff take bookings by phone/LINE/walk-in no matter what online flow

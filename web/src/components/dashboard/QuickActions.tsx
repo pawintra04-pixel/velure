@@ -17,17 +17,12 @@ export function QuickActions() {
         >
           Add team member
         </Link>
-        {/* Not built yet: no UI for a newly signed-up business to connect
-            its own Stripe account (the demo business's was attached by
-            hand). Shown disabled rather than a dead link. */}
-        <button
-          disabled
-          className="cursor-not-allowed rounded-xl border border-border px-4 py-2.5 text-left text-sm text-ink-muted"
-          title="Not available yet"
+        <Link
+          href="/dashboard/settings"
+          className="rounded-xl border border-border px-4 py-2.5 text-left text-sm hover:bg-page"
         >
           Connect Stripe
-          <span className="ml-2 text-xs">(coming soon)</span>
-        </button>
+        </Link>
       </div>
     </div>
   );

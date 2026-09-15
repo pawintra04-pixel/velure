@@ -312,6 +312,15 @@ actually enter details (and possibly complete 3D Secure) client-side.
   also show on the public booking page) and weekly opening hours, per
   weekday, with a "closed" toggle. Both feed `availability.ts` directly;
   there's no cache to invalidate beyond Next's own route revalidation.
+  Also has "Payments" (`PaymentsSection.tsx`, `stripe-actions.ts`):
+  `connectStripeAccount` creates a Standard connected account via the API
+  directly (not OAuth — proven in the Connect spike; TH platforms can't
+  use Express/Custom) the first time, then always generates a fresh
+  Stripe-hosted `account_onboarding` link and redirects there, so it also
+  works as "finish/resume setup" for an account that exists but hasn't
+  completed onboarding. The page checks `charges_enabled` live via the
+  Stripe API on every load rather than caching it, so returning from
+  Stripe's hosted flow reflects immediately.
 - `src/app/dashboard/bookings/` — List / Day / Week / Month views (`?view=`
   + `?date=` in the URL, so every view is linkable). All four read through
   `src/lib/bookings-data.ts`'s shared `getBookingsInRange`; Month/Week fetch
@@ -319,7 +328,16 @@ actually enter details (and possibly complete 3D Secure) client-side.
   silently blank out real bookings on adjacent-month days). Status actions
   (Complete/No-show/Cancel) validate the transition server-side against a
   fixed allow-list (`ALLOWED_TRANSITIONS` in `bookings/actions.ts`) — never
-  trust a status string from the client beyond picking among those.
+  trust a status string from the client beyond picking among those. Any
+  booking with a real payment (`RefundButton.tsx`) can be refunded, full
+  or partial — deliberately a manual, explicit owner action rather than
+  something automatic on cancel, since refund policy varies by business
+  and this app doesn't model one. `refundBooking` in `actions.ts` calls
+  `stripe.refunds.create` against the connected account directly (same
+  direct-charge model as the original payment), then sets the booking to
+  `REFUNDED` or `PARTIALLY_REFUNDED` — both already existed in the
+  `booking_status` enum from day one but were never actually used until
+  this.
 - `src/app/dashboard/reports/` — overview + by-staff + by-service
   breakdowns, date-range filter (week/month/year/all), CSV export
   (`src/app/api/reports/export`) and a print view (`print:hidden` on chrome,
@@ -394,15 +412,27 @@ phone/walk-in customers (verified live, including that it's rejected
 when it conflicts with an existing booking), and staff block time for
 lunch/meetings/etc. (verified live: a block removes those times from the
 public booking page, and creating a block that conflicts with something
-else is rejected the same way a conflicting booking is). Booking
-confirmation emails are coded and wired into both confirmation paths but
-genuinely untested — no `RESEND_API_KEY` supplied yet.
+else is rejected the same way a conflicting booking is). Also done:
+Stripe self-onboarding for a newly signed-up business (`/dashboard/settings`
+→ "Connect Stripe" creates a real Standard connected account and sends
+the owner through Stripe's own hosted onboarding — no more attaching one
+by hand) and owner-triggered refunds, full or partial, on any paid
+booking (`RefundButton.tsx` on the Bookings list). Both verified against
+the real Stripe test-mode API: created a live connected account and
+completed a real card payment, then issued a genuine partial refund and
+confirmed both the booking's status and the actual Stripe refund object.
+Booking confirmation emails are coded and wired into both confirmation
+paths but genuinely untested — no `RESEND_API_KEY` supplied yet.
 
 Not started: customers CRUD UI (only `db/seed.ts` can create these), AI
-onboarding, embed widget, refunds, connecting a Stripe account for a newly
-signed-up business (no UI for it yet), and Velure's own SaaS subscription
-billing (charging business owners monthly/yearly — discussed, not
-designed). Known gaps: class-booking custom fields aren't supported yet
+onboarding, embed widget, and Velure's own SaaS subscription billing
+(charging business owners monthly/yearly — discussed, not designed).
+Known gaps: refunds are manual only (no automatic refund on cancel, since
+refund policy varies by business and isn't modeled) and support one
+refund per booking (no second partial refund on top of a first); Stripe
+onboarding status is checked live on every Settings page load rather than
+cached or kept in sync via an `account.updated` webhook; class-booking
+custom fields aren't supported yet
 (the required/important/optional questions feature only applies to 1:1
 services); an owner can't cancel a whole class session that has existing
 attendee bookings (must cancel each attendee first, same restriction as

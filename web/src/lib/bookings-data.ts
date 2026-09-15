@@ -9,6 +9,7 @@ export type CalendarBooking = {
   serviceName: string;
   staffName: string;
   customerName: string | null;
+  hasPayment: boolean;
 };
 
 export async function getBookingsInRange(
@@ -18,7 +19,7 @@ export async function getBookingsInRange(
 ): Promise<CalendarBooking[]> {
   return withBusinessContext(businessId, async (c) => {
     const { rows } = await c.query(
-      `SELECT b.id, b.start_time, b.end_time, b.status, b.amount,
+      `SELECT b.id, b.start_time, b.end_time, b.status, b.amount, b.stripe_payment_intent_id,
               s.name AS service_name, st.name AS staff_name, cu.name AS customer_name
        FROM bookings b
        JOIN services s ON s.id = b.service_id
@@ -37,6 +38,7 @@ export async function getBookingsInRange(
       serviceName: r.service_name,
       staffName: r.staff_name,
       customerName: r.customer_name,
+      hasPayment: Boolean(r.stripe_payment_intent_id),
     }));
   });
 }

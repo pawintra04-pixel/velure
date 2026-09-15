@@ -1,6 +1,7 @@
 import { formatBaht } from "@/lib/money";
 import type { CalendarBooking } from "@/lib/bookings-data";
 import { updateBookingStatus } from "./actions";
+import { RefundButton } from "./RefundButton";
 
 const STATUS_STYLE: Record<string, string> = {
   CONFIRMED: "bg-[#0ca30c]/10 text-[#0ca30c]",
@@ -11,7 +12,11 @@ const STATUS_STYLE: Record<string, string> = {
   NO_SHOW: "bg-[#d03b3b]/10 text-[#d03b3b]",
   PAYMENT_FAILED: "bg-[#d03b3b]/10 text-[#d03b3b]",
   EXPIRED: "bg-ink/5 text-ink-muted",
+  REFUNDED: "bg-ink/5 text-ink-muted line-through",
+  PARTIALLY_REFUNDED: "bg-[#fab219]/20 text-[#8a5a00]",
 };
+
+const REFUNDABLE_STATUSES = ["CONFIRMED", "COMPLETED", "CANCELLED", "NO_SHOW"];
 
 export function formatTime(iso: string): string {
   return new Intl.DateTimeFormat("en-US", {
@@ -73,6 +78,9 @@ export function BookingRow({ b, compact = false }: { b: CalendarBooking; compact
               Cancel
             </button>
           </form>
+        )}
+        {b.hasPayment && b.amount > 0 && REFUNDABLE_STATUSES.includes(b.status) && (
+          <RefundButton bookingId={b.id} amount={b.amount} />
         )}
       </div>
     </div>

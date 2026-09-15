@@ -74,30 +74,30 @@ export default async function BookingDetailsPage({
   return (
     <>
       <BookingHeader businessName={business.name} slug={slug} logoUrl={business.logo_url} />
-      <div className="mx-auto max-w-4xl px-6 py-10 lg:px-10">
+      <div className="mx-auto max-w-4xl px-6 py-12 lg:px-10">
         <h1 className="text-2xl font-semibold">Almost done</h1>
-        <p className="mt-1 text-sm text-ink-secondary">
+        <p className="mt-2 text-sm text-ink-secondary">
           Your slot is reserved for 10 minutes — complete your details to confirm it.
         </p>
 
-        <div className="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
-          <div className="h-fit rounded-2xl border border-border bg-surface p-6 text-sm">
-            <div className="flex justify-between py-1">
+        <div className="mt-10 grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
+          <div className="flex h-fit flex-col gap-3 rounded-2xl border border-border bg-surface p-8 text-sm">
+            <div className="flex justify-between gap-4 py-1.5">
               <span className="text-ink-muted">Service</span>
-              <span>{booking.service_name}</span>
+              <span className="text-right">{booking.service_name}</span>
             </div>
-            <div className="flex justify-between py-1">
+            <div className="flex justify-between gap-4 py-1.5">
               <span className="text-ink-muted">Staff</span>
-              <span>{booking.staff_name}</span>
+              <span className="text-right">{booking.staff_name}</span>
             </div>
-            <div className="flex justify-between py-1">
+            <div className="flex justify-between gap-4 py-1.5">
               <span className="text-ink-muted">Time</span>
-              <span>{formatTime(booking.start_time)}</span>
+              <span className="text-right">{formatTime(booking.start_time)}</span>
             </div>
             {booking.amount > 0 && (
-              <div className="flex justify-between py-1">
+              <div className="flex justify-between gap-4 border-t border-border py-1.5 pt-4">
                 <span className="text-ink-muted">Amount due</span>
-                <span>{formatBaht(booking.amount)}</span>
+                <span className="text-right font-medium">{formatBaht(booking.amount)}</span>
               </div>
             )}
           </div>

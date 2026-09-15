@@ -64,32 +64,34 @@ export function DetailsForm({
   }
 
   return (
-    <div className="flex h-fit flex-col gap-4 rounded-2xl border border-border bg-surface p-6">
-      <div className="text-sm text-ink-secondary">Your details</div>
-      <input
-        className="rounded-lg border border-border px-3.5 py-2.5 text-sm"
-        placeholder="Name"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-      />
-      <input
-        className="rounded-lg border border-border px-3.5 py-2.5 text-sm"
-        placeholder="Phone number"
-        value={phone}
-        onChange={(e) => setPhone(e.target.value)}
-      />
-      <input
-        className="rounded-lg border border-border px-3.5 py-2.5 text-sm"
-        placeholder="Email"
-        type="email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-      />
+    <div className="flex h-fit flex-col gap-8 rounded-2xl border border-border bg-surface p-8">
+      <div className="flex flex-col gap-3.5">
+        <div className="text-sm font-medium text-ink">Your details</div>
+        <input
+          className="rounded-lg border border-border px-4 py-3 text-sm"
+          placeholder="Name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+        <input
+          className="rounded-lg border border-border px-4 py-3 text-sm"
+          placeholder="Phone number"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+        />
+        <input
+          className="rounded-lg border border-border px-4 py-3 text-sm"
+          placeholder="Email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+      </div>
 
       {customFields.length > 0 && (
-        <div className="flex flex-col gap-4 border-t border-border pt-4">
+        <div className="flex flex-col gap-5 border-t border-border pt-8">
           {customFields.map((f) => (
-            <label key={f.id} className="text-sm text-ink-secondary">
+            <label key={f.id} className="flex flex-col gap-2 text-sm text-ink-secondary">
               <span className="flex items-center gap-1.5">
                 {f.label}
                 {f.importance === "required" && <span className="text-[#d03b3b]">*</span>}
@@ -100,7 +102,7 @@ export function DetailsForm({
                 )}
               </span>
               <input
-                className="mt-1.5 w-full rounded-lg border border-border px-3.5 py-2.5 text-sm"
+                className="w-full rounded-lg border border-border px-4 py-3 text-sm"
                 value={fieldValues[f.id] ?? ""}
                 onChange={(e) => setFieldValues((v) => ({ ...v, [f.id]: e.target.value }))}
               />
@@ -110,13 +112,13 @@ export function DetailsForm({
       )}
 
       {requiresPayment && (
-        <div>
-          <div className="text-sm text-ink-secondary">Pay with</div>
-          <div className="mt-2.5 flex gap-2.5">
+        <div className="flex flex-col gap-3 border-t border-border pt-8">
+          <div className="text-sm font-medium text-ink">Pay with</div>
+          <div className="flex gap-3">
             <button
               type="button"
               onClick={() => setPaymentMethod("promptpay")}
-              className={`flex-1 rounded-xl border px-3 py-2.5 text-sm ${
+              className={`flex-1 rounded-xl border px-3 py-3 text-sm ${
                 paymentMethod === "promptpay"
                   ? "border-accent bg-accent/10 font-medium"
                   : "border-border text-ink-secondary"
@@ -127,7 +129,7 @@ export function DetailsForm({
             <button
               type="button"
               onClick={() => setPaymentMethod("card")}
-              className={`flex-1 rounded-xl border px-3 py-2.5 text-sm ${
+              className={`flex-1 rounded-xl border px-3 py-3 text-sm ${
                 paymentMethod === "card"
                   ? "border-accent bg-accent/10 font-medium"
                   : "border-border text-ink-secondary"
@@ -139,14 +141,16 @@ export function DetailsForm({
         </div>
       )}
 
-      {error && <div className="text-sm text-[#d03b3b]">{error}</div>}
-      <button
-        onClick={submit}
-        disabled={isPending || !name.trim() || !phone.trim() || !email.trim() || missingRequiredField}
-        className="rounded-xl bg-accent py-3 text-sm font-medium text-accent-ink disabled:opacity-50"
-      >
-        {isPending ? "Processing..." : requiresPayment ? "Continue to payment" : "Confirm booking"}
-      </button>
+      <div className="flex flex-col gap-3">
+        {error && <div className="text-sm text-[#d03b3b]">{error}</div>}
+        <button
+          onClick={submit}
+          disabled={isPending || !name.trim() || !phone.trim() || !email.trim() || missingRequiredField}
+          className="rounded-xl bg-accent py-3.5 text-sm font-medium text-accent-ink disabled:opacity-50"
+        >
+          {isPending ? "Processing..." : requiresPayment ? "Continue to payment" : "Confirm booking"}
+        </button>
+      </div>
     </div>
   );
 }

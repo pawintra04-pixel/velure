@@ -13,6 +13,10 @@ import { UpcomingBookings } from "@/components/dashboard/UpcomingBookings";
 import { QuickActions } from "@/components/dashboard/QuickActions";
 import { BookingStatusDonut } from "@/components/dashboard/BookingStatusDonut";
 
+function todayISOInBangkok(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date());
+}
+
 function greeting(): string {
   const hour = new Date().toLocaleString("en-US", { timeZone: "Asia/Bangkok", hour: "numeric", hour12: false });
   const h = parseInt(hour, 10);
@@ -49,7 +53,12 @@ export default async function DashboardPage() {
       </p>
 
       <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard label="Today's bookings" value={String(stats.todayBookings)} tone="green" />
+        <StatCard
+          label="Today's bookings"
+          value={String(stats.todayBookings)}
+          tone="green"
+          href={`/dashboard/bookings?view=day&date=${todayISOInBangkok()}`}
+        />
         <StatCard
           label="Revenue this month"
           value={formatBaht(stats.monthRevenueSatang)}
@@ -60,6 +69,7 @@ export default async function DashboardPage() {
           value={String(stats.pendingPayment)}
           hint="Not yet confirmed"
           tone="amber"
+          href="/dashboard/bookings?status=TEMPORARY_HOLD,PAYMENT_PENDING"
         />
         <StatCard label="Total customers" value={String(stats.totalCustomers)} tone="pink" />
       </div>

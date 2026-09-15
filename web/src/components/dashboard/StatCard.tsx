@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 const TONE_VARS: Record<string, { bg: string; ink: string }> = {
   green: { bg: "--tint-green-bg", ink: "--tint-green-ink" },
   amber: { bg: "--tint-amber-bg", ink: "--tint-amber-ink" },
@@ -10,19 +12,19 @@ export function StatCard({
   value,
   hint,
   tone,
+  href,
 }: {
   label: string;
   value: string;
   hint?: string;
   tone?: keyof typeof TONE_VARS;
+  /** When set, the whole card links out (e.g. to the bookings list filtered to match). */
+  href?: string;
 }) {
   const t = tone ? TONE_VARS[tone] : null;
 
-  return (
-    <div
-      className={`rounded-2xl p-5 ${t ? "" : "border border-border bg-surface"}`}
-      style={t ? { backgroundColor: `var(${t.bg})` } : undefined}
-    >
+  const content = (
+    <>
       <div className="text-sm" style={t ? { color: `var(${t.ink})` } : undefined}>
         {!t && <span className="text-ink-secondary">{label}</span>}
         {t && label}
@@ -37,6 +39,24 @@ export function StatCard({
           {t && hint}
         </div>
       )}
+    </>
+  );
+
+  const className = `block rounded-2xl p-5 ${t ? "" : "border border-border bg-surface"} ${
+    href ? "transition-opacity hover:opacity-80" : ""
+  }`;
+  const style = t ? { backgroundColor: `var(${t.bg})` } : undefined;
+
+  if (href) {
+    return (
+      <Link href={href} className={className} style={style}>
+        {content}
+      </Link>
+    );
+  }
+  return (
+    <div className={className} style={style}>
+      {content}
     </div>
   );
 }

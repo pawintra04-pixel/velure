@@ -419,6 +419,13 @@ restrained pastel tint per metric (`StatCard`'s `tone` prop, tokens in
 `globals.css`: `--tint-{green,amber,blue,pink}-{bg,ink}`), and the booking
 status donut (`BookingStatusDonut.tsx`) uses the reserved status colors
 (good/warning/critical), not the tint palette, since it encodes state.
+The "Pending payment" stat card and every donut segment link to
+`/dashboard/bookings?status=...` — the exact same status groupings
+`getBookingStatusBreakdown`'s SQL uses, so clicking a count shows exactly
+the bookings it was counting, not an approximation. The list view widens
+its normal 1-day lookback to 90 days when a status filter is present,
+since a filter arriving from "this month"'s donut needs to actually reach
+back far enough to contain everything that count included.
 
 The customer-facing `/book/*` flow uses a wider two-column desktop layout
 (see the "App structure" section above) plus a spacing pass — larger card

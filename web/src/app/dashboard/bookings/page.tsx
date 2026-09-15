@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireOwner } from "@/lib/auth";
 import { withBusinessContext } from "@/db/client";
 import {
@@ -19,13 +20,20 @@ function toISO(d: Date): string {
   return d.toISOString();
 }
 
+const STATUS_FILTER_LABELS: Record<string, string> = {
+  "CONFIRMED,COMPLETED": "Confirmed",
+  "TEMPORARY_HOLD,PAYMENT_PENDING": "Pending",
+  "CANCELLED,NO_SHOW,PAYMENT_FAILED,EXPIRED": "Cancelled/no-show",
+};
+
 export default async function BookingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string; date?: string }>;
+  searchParams: Promise<{ view?: string; date?: string; status?: string }>;
 }) {
   const owner = await requireOwner();
-  const { view = "list", date = todayISOInBangkok() } = await searchParams;
+  const { view = "list", date = todayISOInBangkok(), status } = await searchParams;
+  const statusFilter = status ? status.split(",") : null;
 
   const { services, staff } = await withBusinessContext(owner.businessId, async (c) => {
     const servicesResult = await c.query(`SELECT id, name FROM services ORDER BY name`);
@@ -48,6 +56,15 @@ export default async function BookingsPage({
         <div className="mt-4">
           <NewBookingForm services={services} staff={staff} />
         </div>
+
+        {statusFilter && (
+          <div className="mt-4 flex items-center gap-2 text-sm text-ink-secondary">
+            Showing: <span className="font-medium text-ink">{STATUS_FILTER_LABELS[status!] ?? status}</span>
+            <Link href="/dashboard/bookings" className="text-accent underline">
+              Clear
+            </Link>
+          </div>
+        )}
 
         <div className="mt-6">
           {view === "day" && (
@@ -84,25 +101,43 @@ export default async function BookingsPage({
             />
           )}
           {view === "list" && (
-            <ListView businessId={owner.businessId} today={todayISOInBangkok()} />
+            <ListView
+              businessId={owner.businessId}
+              today={todayISOInBangkok()}
+              statusFilter={statusFilter}
+            />
           )}
         </div>
     </div>
   );
 }
 
-async function ListView({ businessId, today }: { businessId: string; today: string }) {
-  const bookings = await getBookingsInRange(
+async function ListView({
+  businessId,
+  today,
+  statusFilter,
+}: {
+  businessId: string;
+  today: string;
+  statusFilter: string[] | null;
+}) {
+  // The plain list only looks 1 day back by design (recent + upcoming, not
+  // a full history dump) — but a status filter arriving from the Overview
+  // donut ("Cancelled/no-show this month") needs to reach back far enough
+  // to actually contain everything that count was counting, or a filtered
+  // click-through can show fewer rows than the number that sent you here.
+  const allBookings = await getBookingsInRange(
     businessId,
-    toISO(bangkokMidnight(addDays(today, -1))),
+    toISO(bangkokMidnight(addDays(today, statusFilter ? -90 : -1))),
     toISO(bangkokMidnight(addDays(today, 365)))
   );
+  const bookings = statusFilter ? allBookings.filter((b) => statusFilter.includes(b.status)) : allBookings;
 
   return (
     <div className="flex flex-col gap-3">
       {bookings.length === 0 && (
         <div className="rounded-2xl border border-border bg-surface p-5 text-sm text-ink-muted">
-          No bookings yet.
+          {statusFilter ? "No bookings match this filter." : "No bookings yet."}
         </div>
       )}
       {bookings.map((b) => (

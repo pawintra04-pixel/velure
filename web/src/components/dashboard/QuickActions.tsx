@@ -18,6 +18,12 @@ export function QuickActions() {
           Add team member
         </Link>
         <Link
+          href="/dashboard/classes"
+          className="rounded-xl border border-border px-4 py-2.5 text-left text-sm hover:bg-page"
+        >
+          Schedule a class
+        </Link>
+        <Link
           href="/dashboard/settings"
           className="rounded-xl border border-border px-4 py-2.5 text-left text-sm hover:bg-page"
         >

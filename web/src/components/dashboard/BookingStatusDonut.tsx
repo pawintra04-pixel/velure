@@ -1,12 +1,20 @@
+import Link from "next/link";
 import type { BookingStatusBreakdown } from "@/lib/dashboard-data";
 
 // Fixed status colors (not the categorical palette) — these encode booking
 // STATE, not series identity, so they use the reserved good/warning/critical
 // roles consistently with how status badges are colored elsewhere in the app.
+// `statuses` mirrors the exact grouping getBookingStatusBreakdown's SQL
+// uses, so clicking a segment shows exactly the bookings counted in it.
 const SEGMENTS = [
-  { key: "confirmed" as const, label: "Confirmed", color: "#0ca30c" },
-  { key: "pending" as const, label: "Pending", color: "#fab219" },
-  { key: "cancelled" as const, label: "Cancelled/no-show", color: "#d03b3b" },
+  { key: "confirmed" as const, label: "Confirmed", color: "#0ca30c", statuses: ["CONFIRMED", "COMPLETED"] },
+  { key: "pending" as const, label: "Pending", color: "#fab219", statuses: ["TEMPORARY_HOLD", "PAYMENT_PENDING"] },
+  {
+    key: "cancelled" as const,
+    label: "Cancelled/no-show",
+    color: "#d03b3b",
+    statuses: ["CANCELLED", "NO_SHOW", "PAYMENT_FAILED", "EXPIRED"],
+  },
 ];
 
 const SIZE = 140;
@@ -76,11 +84,15 @@ export function BookingStatusDonut({ data }: { data: BookingStatusBreakdown }) {
 
         <div className="flex flex-col gap-2">
           {SEGMENTS.map((seg) => (
-            <div key={seg.key} className="flex items-center gap-2 text-sm">
+            <Link
+              key={seg.key}
+              href={`/dashboard/bookings?status=${seg.statuses.join(",")}`}
+              className="flex items-center gap-2 rounded-lg text-sm hover:underline"
+            >
               <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: seg.color }} />
               <span className="text-ink-secondary">{seg.label}</span>
               <span className="font-medium text-ink">{data[seg.key]}</span>
-            </div>
+            </Link>
           ))}
         </div>
       </div>

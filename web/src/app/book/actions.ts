@@ -4,6 +4,7 @@ import { withBusinessContext } from "@/db/client";
 import { stripe } from "@/lib/stripe";
 import { getAvailableSlots, type Slot } from "@/lib/availability";
 import { sendBookingConfirmationEmail } from "@/lib/email";
+import { sendLineBookingConfirmation } from "@/lib/line";
 import { claimClassSeat, releaseClassSeat } from "@/lib/classes";
 import { getOrCreateAnonId } from "@/lib/anon-session";
 import { isStaffFreeForRange } from "@/lib/staff-availability";
@@ -391,6 +392,7 @@ export async function completeBookingDetails(input: {
 
   if (setup.amount === 0) {
     await sendBookingConfirmationEmail(bookingId);
+    await sendLineBookingConfirmation(bookingId);
     return { ok: true, bookingId, needsPayment: false };
   }
 

@@ -157,6 +157,11 @@ actually enter details (and possibly complete 3D Secure) client-side.
     session never checked for a conflicting 1:1 booking at all, since
     `class_sessions`' own exclusion constraint only ever guarded it
     against *other* class sessions).
+  - `016_line_notifications.sql`: `customers.line_user_id` — a LINE user
+    id can only be obtained by a customer actually connecting their
+    account (LINE Login), never derived from their phone/email, so this
+    is additive to the existing customer record rather than a new
+    identity table.
 - `src/db/client.ts` — `appPool` (the non-superuser `app_user` role RLS
   actually applies to) and `withBusinessContext(businessId, fn)`, which
   every business-scoped query should go through. `adminPool` bypasses RLS
@@ -232,6 +237,28 @@ actually enter details (and possibly complete 3D Secure) client-side.
   `RESEND_API_KEY` (and optionally `RESEND_FROM_EMAIL`, `APP_BASE_URL`) in
   `.env.local` — **not yet tested against a live send**, only verified to
   type-check and to correctly skip when the key is absent.
+- `src/lib/line.ts` + `src/app/api/line/connect|callback/` — LINE OA
+  booking-confirmation notifications, the highest-priority post-MVP item
+  named in an external review specifically for the Thai market. A
+  customer's LINE user id isn't derivable from anything already on file,
+  so it needs its own connect flow: `/book/manage/[bookingId]` shows a
+  "Connect LINE" link (only when `LINE_LOGIN_CHANNEL_ID` is configured —
+  hidden entirely otherwise, not shown disabled) that starts LINE Login
+  OAuth, keyed by the booking's own unguessable id the same way every
+  other public booking-management action is (no customer session exists
+  to key it by instead). The callback exchanges the code and verifies the
+  id_token via LINE's own `/oauth2/v2.1/verify` endpoint — no local JWT
+  library or JWKS handling needed, and no risk of trusting an unverified
+  claim — then stores the returned `sub` as `customers.line_user_id`.
+  `sendLineBookingConfirmation` mirrors `email.ts`'s fire-and-forget
+  contract exactly (same call sites, same "missing config = skip" and
+  "failure = log, never throw" behavior) and needs
+  `LINE_LOGIN_CHANNEL_ID`/`LINE_LOGIN_CHANNEL_SECRET` (the Login channel)
+  plus `LINE_MESSAGING_CHANNEL_ACCESS_TOKEN` (the Messaging API channel —
+  both belong to the same LINE Official Account) in `.env.local` —
+  **not yet tested against a real LINE account**, only verified to
+  type-check, to correctly return 501/skip when unconfigured, and that
+  the connect UI stays hidden rather than showing a dead link.
 - `src/lib/availability.ts` — computes open slots for a service/date from
   real `business_hours` and `staff_hours` (a weekday can be closed
   entirely, and a staff member's own shift plus one optional break window
@@ -421,8 +448,13 @@ booking (`RefundButton.tsx` on the Bookings list). Both verified against
 the real Stripe test-mode API: created a live connected account and
 completed a real card payment, then issued a genuine partial refund and
 confirmed both the booking's status and the actual Stripe refund object.
-Booking confirmation emails are coded and wired into both confirmation
-paths but genuinely untested — no `RESEND_API_KEY` supplied yet.
+Booking confirmation emails and LINE OA notifications are both coded and
+wired into the same confirmation paths but genuinely untested — no
+`RESEND_API_KEY` or LINE Developer credentials supplied yet. The LINE
+Login connect flow itself (the part that doesn't need a real LINE account
+to verify) has been checked live: the connect endpoint correctly refuses
+with 501 and the "Connect LINE" UI stays hidden entirely when
+unconfigured, rather than either failing loudly or showing a dead link.
 
 Not started: customers CRUD UI (only `db/seed.ts` can create these), AI
 onboarding, embed widget, and Velure's own SaaS subscription billing

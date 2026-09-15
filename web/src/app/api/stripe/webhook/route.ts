@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe";
 import { adminPool } from "@/db/client";
 import { sendBookingConfirmationEmail } from "@/lib/email";
+import { sendLineBookingConfirmation } from "@/lib/line";
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
@@ -55,6 +56,7 @@ export async function POST(req: Request) {
     // payment could still reach here, e.g. a retried/out-of-order delivery).
     if (confirmed) {
       await sendBookingConfirmationEmail(confirmed.id);
+      await sendLineBookingConfirmation(confirmed.id);
     }
   } else if (event.type === "payment_intent.payment_failed") {
     const paymentIntent = event.data.object as { id: string };

@@ -22,25 +22,34 @@ function formatTime(iso: string): string {
 // authorization here.
 export default async function ManageBookingPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ bookingId: string }>;
+  searchParams: Promise<{ line?: string }>;
 }) {
   const { bookingId } = await params;
+  const { line } = await searchParams;
 
   const { rows: [booking] } = await adminPool.query(
     `SELECT b.id, b.status, b.amount, b.start_time, b.service_id, b.class_session_id,
             s.name AS service_name, st.name AS staff_name,
             biz.name AS business_name, biz.slug AS business_slug, biz.logo_url AS business_logo_url,
-            biz.reschedule_cutoff_hours, biz.cancel_cutoff_hours
+            biz.reschedule_cutoff_hours, biz.cancel_cutoff_hours,
+            cu.line_user_id
      FROM bookings b
      JOIN services s ON s.id = b.service_id
      JOIN staff st ON st.id = b.staff_id
      JOIN businesses biz ON biz.id = b.business_id
+     LEFT JOIN customers cu ON cu.id = b.customer_id
      WHERE b.id = $1`,
     [bookingId]
   );
 
   if (!booking) notFound();
+
+  // Hidden entirely, not shown-disabled, when the business hasn't set up
+  // LINE Login — this is a project-wide config, not a per-booking state.
+  const lineConnectAvailable = Boolean(process.env.LINE_LOGIN_CHANNEL_ID);
 
   const hoursUntilStart = hoursUntil(booking.start_time);
   const canReschedule =
@@ -96,6 +105,31 @@ export default async function ManageBookingPage({
             This booking is {booking.status.toLowerCase().replace("_", " ")} and can no longer be
             changed here.
           </p>
+        )}
+
+        {lineConnectAvailable && (
+          <div className="mt-4 rounded-2xl border border-border bg-surface p-5">
+            {line === "connected" || booking.line_user_id ? (
+              <p className="text-sm text-ink-secondary">
+                ✅ Connected — you&apos;ll get booking updates on LINE.
+              </p>
+            ) : (
+              <>
+                <p className="text-sm text-ink-secondary">Get booking updates on LINE.</p>
+                {line === "error" && (
+                  <p className="mt-1 text-sm text-[#d03b3b]">
+                    Something went wrong connecting LINE — please try again.
+                  </p>
+                )}
+                <a
+                  href={`/api/line/connect?bookingId=${bookingId}`}
+                  className="mt-3 inline-block rounded-xl border border-border px-4 py-2 text-sm font-medium hover:bg-page"
+                >
+                  Connect LINE
+                </a>
+              </>
+            )}
+          </div>
         )}
       </div>
     </>

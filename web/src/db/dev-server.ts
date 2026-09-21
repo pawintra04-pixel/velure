@@ -1,5 +1,6 @@
 import EmbeddedPostgres from "embedded-postgres";
 import { join } from "node:path";
+import { existsSync } from "node:fs";
 
 // Persistent local Postgres for development — no brew/Docker on this
 // machine, so this replaces "run `postgres` locally" for dev purposes.
@@ -16,7 +17,14 @@ const pg = new EmbeddedPostgres({
 });
 
 async function main() {
-  await pg.initialise(); // no-ops if dataDir already has a cluster
+  // The installed embedded-postgres version's initialise() always runs
+  // initdb unconditionally (no internal already-initialized check, despite
+  // the API doc comment implying one) — it errors on a non-empty dataDir,
+  // so only call it the first time, gated on the marker file initdb itself
+  // writes.
+  if (!existsSync(join(dataDir, "PG_VERSION"))) {
+    await pg.initialise();
+  }
   await pg.start();
 
   try {

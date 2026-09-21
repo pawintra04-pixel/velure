@@ -3,33 +3,43 @@ import { withBusinessContext } from "@/db/client";
 import {
   getStatTiles,
   getMonthlyRevenue,
-  getUpcomingBookings,
-  getBookingStatusBreakdown,
+  getTodaySchedule,
+  getAttentionItems,
 } from "@/lib/dashboard-data";
-import { formatBaht } from "@/lib/money";
-import { StatCard } from "@/components/dashboard/StatCard";
-import { RevenueChart } from "@/components/dashboard/RevenueChart";
-import { UpcomingBookings } from "@/components/dashboard/UpcomingBookings";
-import { QuickActions } from "@/components/dashboard/QuickActions";
-import { BookingStatusDonut } from "@/components/dashboard/BookingStatusDonut";
+import { TodaySchedule, UpNextLine } from "@/components/dashboard/TodaySchedule";
+import { NeedsAttention } from "@/components/dashboard/NeedsAttention";
+import { PerformancePanel } from "@/components/dashboard/PerformancePanel";
+import { NewBookingForm } from "@/app/dashboard/bookings/NewBookingForm";
 
-function todayISOInBangkok(): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date());
+function todayLabel(): string {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Bangkok",
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  }).format(new Date());
 }
 
-function greeting(): string {
-  const hour = new Date().toLocaleString("en-US", { timeZone: "Asia/Bangkok", hour: "numeric", hour12: false });
-  const h = parseInt(hour, 10);
-  if (h < 12) return "Good morning";
-  if (h < 18) return "Good afternoon";
-  return "Good evening";
+// Visually matches "+ New booking" but has no real capability behind it
+// yet (no distinct quick-add flow exists in the app) — rendered inert
+// rather than duplicating New booking's action or fabricating a new one.
+// See the Phase 1 implementation report for the flag on this element.
+function QuickAddButton({ className }: { className: string }) {
+  return (
+    <button type="button" disabled aria-disabled="true" title="Quick add isn't available yet" className={className}>
+      Quick add
+      <svg width="10" height="10" viewBox="0 0 10 10" fill="none" className="ml-1.5 inline-block">
+        <path d="M2 3.5 5 6.5 8 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </button>
+  );
 }
 
 export default async function DashboardPage() {
   const owner = await requireOwner();
   const businessId = owner.businessId;
 
-  const [business, stats, revenue, upcoming, statusBreakdown] = await Promise.all([
+  const [business, stats, monthlyRevenue, schedule, attention, { services, staff }] = await Promise.all([
     withBusinessContext(businessId, async (c) => {
       const { rows: [row] } = await c.query(`SELECT name, slug FROM businesses WHERE id = $1`, [
         businessId,
@@ -38,50 +48,67 @@ export default async function DashboardPage() {
     }),
     getStatTiles(businessId),
     getMonthlyRevenue(businessId),
-    getUpcomingBookings(businessId),
-    getBookingStatusBreakdown(businessId),
+    getTodaySchedule(businessId),
+    getAttentionItems(businessId),
+    withBusinessContext(businessId, async (c) => {
+      const servicesResult = await c.query(`SELECT id, name FROM services ORDER BY name`);
+      const staffResult = await c.query(`SELECT id, name FROM staff ORDER BY name`);
+      return { services: servicesResult.rows, staff: staffResult.rows };
+    }),
   ]);
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-8">
-      <h1 className="text-2xl font-semibold">{greeting()}</h1>
-      <p className="mt-1 text-sm text-ink-secondary">
-        Here&apos;s how {business.name} is doing today ·{" "}
-        <a href={`/book/${business.slug}`} target="_blank" className="text-accent underline">
-          View your booking page
-        </a>
-      </p>
+    <div className="font-didact mx-auto max-w-[1320px] px-6 py-8 sm:px-10 sm:py-10 lg:px-12">
+      <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+        <div>
+          <div className="text-[13px] text-ink-muted">{todayLabel()}</div>
+          <h1 className="mt-1.5 text-[26px] font-normal tracking-tight text-ink sm:text-[32px] lg:text-[36px]">
+            Today at {business.name}
+          </h1>
+        </div>
 
-      <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard
-          label="Today's bookings"
-          value={String(stats.todayBookings)}
-          tone="green"
-          href={`/dashboard/bookings?view=day&date=${todayISOInBangkok()}`}
-        />
-        <StatCard
-          label="Revenue this month"
-          value={formatBaht(stats.monthRevenueSatang)}
-          tone="blue"
-        />
-        <StatCard
-          label="Pending payment"
-          value={String(stats.pendingPayment)}
-          hint="Not yet confirmed"
-          tone="amber"
-          href="/dashboard/bookings?status=TEMPORARY_HOLD,PAYMENT_PENDING"
-        />
-        <StatCard label="Total customers" value={String(stats.totalCustomers)} tone="pink" />
+        {/* Desktop actions */}
+        <div className="hidden items-center gap-3 sm:flex">
+          <QuickAddButton className="flex items-center rounded-lg border border-ink/25 px-4 py-2.5 text-[14.5px] text-ink-secondary opacity-60 cursor-not-allowed" />
+          <NewBookingForm
+            services={services}
+            staff={staff}
+            buttonClassName="rounded-lg bg-sunburst px-5 py-2.5 text-[15px] font-medium text-ink transition-[filter] hover:brightness-95"
+          />
+        </div>
+
+        {/* Mobile actions — primary CTA first, Quick add de-emphasized below it */}
+        <div className="flex flex-col gap-2 sm:hidden">
+          <NewBookingForm
+            services={services}
+            staff={staff}
+            buttonClassName="w-full rounded-lg bg-sunburst px-4 py-3.5 text-center text-[15px] font-medium text-ink"
+          />
+          <QuickAddButton className="flex items-center justify-center py-1 text-[13px] text-ink-muted opacity-70 cursor-not-allowed" />
+        </div>
       </div>
 
-      <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <RevenueChart data={revenue} />
+      <div className="mt-7">
+        <UpNextLine entries={schedule} />
+      </div>
+
+      {/*
+        Mobile order (locked): Needs Attention -> Today's Schedule -> Performance.
+        Desktop: Schedule occupies column 1 across both rows; Needs Attention
+        and Performance stack in column 2. `order` drives mobile stacking
+        (single column, so `order` alone determines vertical sequence);
+        `lg:order-none` hands placement back to the explicit column/row
+        lines below at desktop width.
+      */}
+      <div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1.75fr)_minmax(300px,1fr)] lg:grid-rows-[auto_1fr] lg:gap-x-12 lg:gap-y-10">
+        <div className="order-2 lg:order-none lg:col-start-1 lg:row-start-1 lg:row-span-2">
+          <TodaySchedule entries={schedule} />
         </div>
-        <div className="flex flex-col gap-4">
-          <BookingStatusDonut data={statusBreakdown} />
-          <UpcomingBookings bookings={upcoming} />
-          <QuickActions />
+        <div className="order-1 lg:order-none lg:col-start-2 lg:row-start-1">
+          <NeedsAttention data={attention} />
+        </div>
+        <div className="order-3 lg:order-none lg:col-start-2 lg:row-start-2">
+          <PerformancePanel stats={stats} monthlyRevenue={monthlyRevenue} />
         </div>
       </div>
     </div>

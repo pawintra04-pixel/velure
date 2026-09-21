@@ -1,7 +1,10 @@
 @import "tailwindcss";
 
 :root {
-  --page: #ffffff;
+  /* Warm ivory, not clinical white — the page ground surfaces (stat tiles,
+     calendar, cards) sit on. Surfaces themselves stay pure white so they
+     still read as distinct objects lifted off this ground. */
+  --page: #faf9f6;
   --surface: #ffffff;
   --ink: #0b0b0b;
   --ink-secondary: #52514e;
@@ -9,8 +12,20 @@
   --border: rgba(11, 11, 11, 0.1);
   --gridline: #e1e0d9;
   --accent: #1baf7a;
+  --accent-hover: #159163;
+  --accent-pressed: #0f7a52;
   --accent-ink: #ffffff;
   --success: #0ca30c;
+
+  /* Semantic status colors — one name per booking-state meaning, reused
+     everywhere a status shows (calendar blocks, booking rows, badges)
+     instead of each screen picking its own hex. Confirmed/pending were
+     already right, just unnamed; critical (failed/no-show) was a bare hex
+     repeated ad hoc across several files before this. */
+  --status-confirmed: var(--success);
+  --status-pending: #a8681c;
+  --status-critical: #d03b3b;
+  --status-neutral: var(--ink-muted);
 
   /* Dashboard sidebar — deliberately its own dark surface, not the page's
      ink/background tokens, so it reads as a distinct panel rather than a
@@ -36,6 +51,24 @@
   --tint-blue-ink: #3462ad;
   --tint-pink-bg: #fbeef2;
   --tint-pink-ink: #b34a6b;
+
+  /* One restrained elevation level — the app was flat (zero box-shadow)
+     before this pass. Not a full elevation system, just enough for a
+     surface that needs to visibly lift off the new warm page background. */
+  --shadow-card: 0 1px 2px rgba(11, 11, 11, 0.04), 0 1px 8px rgba(11, 11, 11, 0.03);
+
+  /* Velure Design System v1 (approved) — Overview + the shared sidebar
+     shell only, for now. Deliberately separate from --sidebar/--accent
+     above rather than repointing them: those two tokens are also read by
+     Bookings/Calendar/Reports tab pills and the (now-removed) revenue
+     chart, and the rest of the app is explicitly not being restyled yet. */
+  --midnight: #252c37;
+  --midnight-ink: #ffffff;
+  --midnight-ink-muted: rgba(255, 255, 255, 0.55);
+  --midnight-active-bg: rgba(248, 198, 30, 0.08);
+  --sunburst: #f8c61e;
+  --soft-yellow: #ffeba2;
+  --soft-yellow-surface: #fef8ea;
 }
 
 @theme inline {
@@ -47,18 +80,87 @@
   --color-border: var(--border);
   --color-gridline: var(--gridline);
   --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-pressed: var(--accent-pressed);
   --color-accent-ink: var(--accent-ink);
   --color-success: var(--success);
+  --color-status-confirmed: var(--status-confirmed);
+  --color-status-pending: var(--status-pending);
+  --color-status-critical: var(--status-critical);
+  --color-status-neutral: var(--status-neutral);
   --color-sidebar: var(--sidebar);
   --color-sidebar-ink: var(--sidebar-ink);
   --color-sidebar-ink-muted: var(--sidebar-ink-muted);
   --color-sidebar-active: var(--sidebar-active);
+  --shadow-card: var(--shadow-card);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  --color-midnight: var(--midnight);
+  --color-midnight-ink: var(--midnight-ink);
+  --color-midnight-ink-muted: var(--midnight-ink-muted);
+  --color-midnight-active-bg: var(--midnight-active-bg);
+  --color-sunburst: var(--sunburst);
+  --color-soft-yellow: var(--soft-yellow);
+  --color-soft-yellow-surface: var(--soft-yellow-surface);
+  --font-didact: var(--font-didact-gothic), var(--font-geist-sans), system-ui, sans-serif;
 }
 
 body {
   background: var(--page);
   color: var(--ink);
   font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
+}
+
+/* Button states — explicit hover/active/disabled instead of an opacity
+   trick, so an enabled primary action always reads as obviously
+   actionable. A CSS class, not a React component, so existing buttons can
+   adopt it incrementally rather than needing a sweeping refactor. */
+.btn-primary {
+  background: var(--accent);
+  color: var(--accent-ink);
+  transition: background-color 0.12s ease, transform 0.05s ease;
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+.btn-primary:active:not(:disabled) {
+  background: var(--accent-pressed);
+  transform: translateY(0.5px);
+}
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--border);
+  transition: background-color 0.12s ease;
+}
+.btn-secondary:hover:not(:disabled) {
+  background: var(--page);
+}
+.btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@keyframes drawer-slide-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes drawer-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }

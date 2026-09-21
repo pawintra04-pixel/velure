@@ -25,6 +25,16 @@ const NAV_ITEMS = [
     icon: "M4 4h12v13H4V4Zm0 4h12M7 2v3M13 2v3",
   },
   {
+    label: "Calendar",
+    href: "/dashboard/calendar",
+    icon: "M4 4h12v13H4V4Zm0 4h12M7 2v3M13 2v3M7 11h2M11 11h2M7 14h2",
+  },
+  {
+    label: "Customers",
+    href: "/dashboard/customers",
+    icon: "M7 9a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Zm0 1.5c-3 0-5.5 1.8-5.5 4.5v1h11v-1c0-2.7-2.5-4.5-5.5-4.5ZM13.5 5a2 2 0 1 1 0 4M14 10c1.8.4 3 1.6 3 3.3V15h-2.5",
+  },
+  {
     label: "Services",
     href: "/dashboard/services",
     icon: "M4 4h6l6 6-6 6-6-6V4Zm3 3h.01",
@@ -38,6 +48,15 @@ const NAV_ITEMS = [
     label: "Classes",
     href: "/dashboard/classes",
     icon: "M4 6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6Zm3 3.5h6M7 12.5h4",
+    setupKey: "classesConfigured" as const,
+  },
+  {
+    // Label only — the route/page underneath is still "Studios" (its own,
+    // separately-scoped rename, deferred past this Overview-only phase).
+    label: "Resources",
+    href: "/dashboard/studios",
+    icon: "M3 17V7l7-4 7 4v10M3 17h14M3 17v-6h4v6M13 17v-6h4v6M8.5 9.5h3",
+    setupKey: "resourcesConfigured" as const,
   },
   {
     label: "Reports",
@@ -51,23 +70,32 @@ const NAV_ITEMS = [
   },
 ];
 
-function NavLinks({ pathname }: { pathname: string }) {
+type NavSetupFlags = { classesConfigured: boolean; resourcesConfigured: boolean };
+
+function NavLinks({ pathname, setup }: { pathname: string; setup: NavSetupFlags }) {
   return (
-    <nav className="mt-8 flex flex-col gap-1">
+    <nav className="mt-8 flex flex-col gap-0.5">
       {NAV_ITEMS.map((item) => {
         const active = pathname === item.href;
+        const needsSetup = item.setupKey ? !setup[item.setupKey] : false;
         return (
           <Link
             key={item.href}
             href={item.href}
-            className={`flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm transition-colors ${
+            className={`relative flex items-center gap-2.5 rounded-lg px-4 py-2.5 text-sm transition-colors ${
               active
-                ? "bg-sidebar-active text-sidebar-ink"
-                : "text-sidebar-ink-muted hover:bg-sidebar-active hover:text-sidebar-ink"
+                ? "bg-midnight-active-bg text-sunburst"
+                : "text-midnight-ink-muted hover:bg-midnight-active-bg hover:text-midnight-ink"
             }`}
           >
+            {active && (
+              <span className="absolute left-[-8px] top-1/2 h-5 w-1 -translate-y-1/2 rounded-full bg-sunburst" />
+            )}
             <Icon path={item.icon} />
             {item.label}
+            {needsSetup && (
+              <span className="ml-auto text-[10px] tracking-wide text-white/30">Set up</span>
+            )}
           </Link>
         );
       })}
@@ -78,11 +106,11 @@ function NavLinks({ pathname }: { pathname: string }) {
 function AccountFooter({ ownerEmail }: { ownerEmail: string }) {
   return (
     <div className="mt-auto flex flex-col gap-2 border-t border-white/10 pt-4">
-      <div className="truncate px-2 text-xs text-sidebar-ink-muted">{ownerEmail}</div>
+      <div className="truncate px-2 text-xs text-midnight-ink-muted">{ownerEmail}</div>
       <form action={logOut}>
         <button
           type="submit"
-          className="w-full rounded-xl px-3 py-2 text-left text-sm text-sidebar-ink-muted hover:bg-sidebar-active hover:text-sidebar-ink"
+          className="w-full rounded-lg px-4 py-2 text-left text-sm text-midnight-ink-muted hover:bg-midnight-active-bg hover:text-midnight-ink"
         >
           Log out
         </button>
@@ -91,8 +119,30 @@ function AccountFooter({ ownerEmail }: { ownerEmail: string }) {
   );
 }
 
-export function Sidebar({ ownerEmail }: { ownerEmail: string }) {
+function Wordmark() {
+  return (
+    <span className="flex items-center gap-2.5">
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-sunburst">
+        <svg width="14" height="14" viewBox="0 0 20 20" fill="none">
+          <path d="M4 10.5 8 14.5 16 6" stroke="#252C37" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </span>
+      Velure
+    </span>
+  );
+}
+
+export function Sidebar({
+  ownerEmail,
+  classesConfigured,
+  resourcesConfigured,
+}: {
+  ownerEmail: string;
+  classesConfigured: boolean;
+  resourcesConfigured: boolean;
+}) {
   const pathname = usePathname();
+  const setup: NavSetupFlags = { classesConfigured, resourcesConfigured };
   const [open, setOpen] = useState(false);
 
   // A fixed w-56 sidebar left no usable width for content on a phone —
@@ -108,19 +158,19 @@ export function Sidebar({ ownerEmail }: { ownerEmail: string }) {
   }
 
   return (
-    <>
-      <header className="flex items-center justify-between bg-sidebar px-4 py-3 print:hidden lg:hidden">
-        <Link href="/dashboard" className="text-lg font-semibold tracking-tight text-sidebar-ink">
-          Velure
+    <div className="font-didact contents">
+      <header className="flex items-center justify-between bg-midnight px-4 py-3.5 print:hidden lg:hidden">
+        <Link href="/dashboard" className="text-[15px] tracking-tight text-midnight-ink">
+          <Wordmark />
         </Link>
         <button
           type="button"
           onClick={() => setOpen(true)}
           aria-label="Open menu"
-          className="rounded-lg p-2 text-sidebar-ink hover:bg-sidebar-active"
+          className="rounded-lg p-2 text-midnight-ink hover:bg-midnight-active-bg"
         >
           <svg viewBox="0 0 20 20" fill="none" className="h-5 w-5">
-            <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
           </svg>
         </button>
       </header>
@@ -128,33 +178,48 @@ export function Sidebar({ ownerEmail }: { ownerEmail: string }) {
       {open && (
         <div className="fixed inset-0 z-40 lg:hidden">
           <div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} />
-          <aside className="absolute inset-y-0 left-0 flex w-64 flex-col bg-sidebar px-3 py-5">
+          <aside className="absolute inset-y-0 left-0 flex w-64 flex-col bg-midnight px-3 py-5">
             <div className="flex items-center justify-between px-2">
-              <span className="text-lg font-semibold tracking-tight text-sidebar-ink">Velure</span>
+              <span className="text-[16.5px] tracking-tight text-midnight-ink">
+                <Wordmark />
+              </span>
               <button
                 type="button"
                 onClick={() => setOpen(false)}
                 aria-label="Close menu"
-                className="rounded-lg p-1.5 text-sidebar-ink-muted hover:bg-sidebar-active hover:text-sidebar-ink"
+                className="rounded-lg p-1.5 text-midnight-ink-muted hover:bg-midnight-active-bg hover:text-midnight-ink"
               >
                 <svg viewBox="0 0 20 20" fill="none" className="h-5 w-5">
                   <path d="M5 5l10 10M15 5 5 15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                 </svg>
               </button>
             </div>
-            <NavLinks pathname={pathname} />
+            <NavLinks pathname={pathname} setup={setup} />
             <AccountFooter ownerEmail={ownerEmail} />
           </aside>
         </div>
       )}
 
-      <aside className="hidden h-screen w-56 shrink-0 flex-col bg-sidebar px-3 py-5 print:hidden lg:flex">
-        <Link href="/dashboard" className="px-2 text-lg font-semibold tracking-tight text-sidebar-ink">
-          Velure
+      {/*
+        sticky + top-0 + h-screen (not fixed/min-height) — the sidebar is a
+        flex sibling of `main` in the shared dashboard layout, and `main` is
+        routinely taller than one viewport. A `fixed` sidebar would need
+        `main` to carry a matching margin-left by hand on every page; sticky
+        keeps this a one-line change; a bare `min-h-screen` would have grown
+        with `main` and painted `bg-midnight` past the real nav content
+        instead of solving the disappearing-background bug. Sticky pins the
+        rail to the viewport for the whole scroll (its containing block is
+        the row-flex layout, which is exactly as tall as the page), so the
+        page scrolls as one surface with no nested scroll container — no
+        double scrollbar.
+      */}
+      <aside className="sticky top-0 hidden h-screen w-52 shrink-0 flex-col bg-midnight px-3 py-7 print:hidden lg:flex">
+        <Link href="/dashboard" className="px-4 text-[16.5px] tracking-tight text-midnight-ink">
+          <Wordmark />
         </Link>
-        <NavLinks pathname={pathname} />
+        <NavLinks pathname={pathname} setup={setup} />
         <AccountFooter ownerEmail={ownerEmail} />
       </aside>
-    </>
+    </div>
   );
 }

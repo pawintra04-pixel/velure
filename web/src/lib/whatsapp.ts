@@ -366,3 +366,15 @@ export async function sendWhatsAppBookingCancelled(bookingId: string): Promise<S
     (row, time) => `Booking cancelled: ${row.service_name}, was scheduled for ${time}.`
   );
 }
+
+// Same 24h-session-window caveat as the other proactive senders — most
+// reminders (sent 1-2 days ahead, per remindUpcomingBookings' comment in
+// notifications.ts) will need an approved Meta Template to actually
+// deliver, since the customer almost certainly hasn't messaged in the
+// last 24h by the time a reminder fires.
+export async function sendWhatsAppBookingReminder(bookingId: string): Promise<SendResult> {
+  return sendProactiveBookingEvent(
+    bookingId,
+    (row, time) => `Reminder: ${row.service_name} with ${row.staff_name} on ${time}.`
+  );
+}

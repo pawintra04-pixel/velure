@@ -1,20 +1,21 @@
 import { NextResponse } from "next/server";
-import { retryFailedNotifications } from "@/lib/notifications";
+import { retryFailedNotifications, remindUpcomingBookings } from "@/lib/notifications";
 
 /**
- * Vercel Cron target (see vercel.json) — sweeps notification_log for
- * channels still marked 'failed' and retries them, bounded by
- * MAX_RETRY_COUNT in notifications.ts so a permanently broken channel
- * (e.g. WhatsApp before a Template is approved) doesn't retry forever.
+ * Vercel Cron target (see vercel.json) — the one daily job doing two
+ * things, not two separate cron entries: Vercel's Hobby plan caps both how
+ * often a cron can fire (daily max) AND how many cron jobs a project can
+ * have, discovered the hard way on the frequency limit already (see the
+ * retry-only version of this comment in git history). Sharing one route
+ * costs nothing — both are cheap DB sweeps.
+ *
+ * Runs once daily at 09:00 Bangkok time (moved from the original
+ * retry-only job's 03:00 once reminders — customer-facing, unlike a
+ * silent retry — joined this route; nobody should get a "see you
+ * tomorrow" message at 3am).
+ *
  * Vercel signs cron requests with this bearer token automatically; this
  * guards the route from being triggered by anyone else who finds the URL.
- *
- * Runs once daily (03:00 Bangkok time), not every 15 minutes as first
- * designed — Vercel's Hobby plan rejects any cron expression that would
- * fire more than once a day (deploy-time error, discovered the hard way).
- * Fine for this job's actual stakes: a failed notification's booking is
- * already committed either way, so a slower retry only delays a customer
- * hearing about it again, never risks anything.
  */
 export async function GET(req: Request) {
   const authHeader = req.headers.get("authorization");
@@ -22,6 +23,11 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const result = await retryFailedNotifications();
-  return NextResponse.json({ ok: true, ...result });
+  const retryResult = await retryFailedNotifications();
+  const reminderResult = await remindUpcomingBookings();
+  return NextResponse.json({
+    ok: true,
+    retried: retryResult.attempted,
+    reminded: reminderResult.attempted,
+  });
 }

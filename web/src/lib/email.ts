@@ -208,3 +208,65 @@ export async function sendBookingCancelledEmail(bookingId: string): Promise<Send
     return "failed";
   }
 }
+
+/**
+ * Same shape again, for the reminder sweep (see notifications.ts's
+ * remindUpcomingBookings, called by the daily cron). Reminder is a
+ * one-time event per booking per the notification_log UNIQUE constraint —
+ * rescheduleBooking clears any prior 'booking_reminder' row so a moved
+ * booking gets reminded again relative to its new time.
+ */
+export async function sendBookingReminderEmail(bookingId: string): Promise<SendResult> {
+  if (!resend) {
+    console.log(`[email] RESEND_API_KEY not set — skipping reminder email for ${bookingId}`);
+    return "skipped";
+  }
+
+  try {
+    const { rows: [row] } = await adminPool.query(
+      `SELECT
+         cu.name AS customer_name, cu.email AS customer_email,
+         s.name AS service_name, st.name AS staff_name,
+         b.start_time, biz.name AS business_name
+       FROM bookings b
+       JOIN services s ON s.id = b.service_id
+       JOIN staff st ON st.id = b.staff_id
+       JOIN businesses biz ON biz.id = b.business_id
+       LEFT JOIN customers cu ON cu.id = b.customer_id
+       WHERE b.id = $1`,
+      [bookingId]
+    );
+
+    if (!row || !row.customer_email) {
+      console.log(`[email] no customer email on file for booking ${bookingId} — skipping reminder email`);
+      return "skipped";
+    }
+
+    const time = formatBookingTime(row.start_time);
+    const manageUrl = `${APP_BASE_URL}/book/manage/${bookingId}`;
+
+    await resend.emails.send({
+      from: FROM_EMAIL,
+      to: row.customer_email,
+      subject: `Reminder — ${row.service_name} at ${row.business_name}`,
+      html: `
+        <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+          <h2>See you soon</h2>
+          <p>Hi ${row.customer_name ?? "there"}, this is a reminder about your upcoming booking at ${row.business_name}.</p>
+          <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+            <tr><td style="padding: 6px 0; color: #666;">Service</td><td style="padding: 6px 0;">${row.service_name}</td></tr>
+            <tr><td style="padding: 6px 0; color: #666;">Staff</td><td style="padding: 6px 0;">${row.staff_name}</td></tr>
+            <tr><td style="padding: 6px 0; color: #666;">Time</td><td style="padding: 6px 0;">${time}</td></tr>
+          </table>
+          <p><a href="${manageUrl}">Need to reschedule or cancel?</a></p>
+          <p style="color: #888; font-size: 13px;">This is an automated reminder from Velure.</p>
+        </div>
+      `,
+    });
+    console.log(`[email] sent reminder for booking ${bookingId} to ${row.customer_email}`);
+    return "sent";
+  } catch (err) {
+    console.error(`[email] failed to send reminder for booking ${bookingId}`, err);
+    return "failed";
+  }
+}

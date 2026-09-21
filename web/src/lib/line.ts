@@ -109,3 +109,10 @@ export async function sendLineBookingCancelled(bookingId: string): Promise<SendR
     return `Booking cancelled at ${row.business_name}\n${row.service_name} — was scheduled for ${time}`;
   });
 }
+
+export async function sendLineBookingReminder(bookingId: string): Promise<SendResult> {
+  return sendLineBookingEvent(bookingId, (row) => {
+    const time = formatBookingTime(row.start_time);
+    return `Reminder: ${row.service_name} at ${row.business_name}\nWith ${row.staff_name}\n${time}`;
+  });
+}

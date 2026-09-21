@@ -4,19 +4,26 @@ import {
   sendBookingConfirmationEmail,
   sendBookingRescheduledEmail,
   sendBookingCancelledEmail,
+  sendBookingReminderEmail,
 } from "@/lib/email";
 import {
   sendLineBookingConfirmation,
   sendLineBookingRescheduled,
   sendLineBookingCancelled,
+  sendLineBookingReminder,
 } from "@/lib/line";
 import {
   sendWhatsAppBookingConfirmation,
   sendWhatsAppBookingRescheduled,
   sendWhatsAppBookingCancelled,
+  sendWhatsAppBookingReminder,
 } from "@/lib/whatsapp";
 
-export type NotificationEventType = "booking_confirmed" | "booking_rescheduled" | "booking_cancelled";
+export type NotificationEventType =
+  | "booking_confirmed"
+  | "booking_rescheduled"
+  | "booking_cancelled"
+  | "booking_reminder";
 export type NotificationChannel = "email" | "line" | "whatsapp";
 
 // The one place every channel plugs into per event type — adding a fourth
@@ -40,6 +47,11 @@ const SENDERS: Record<NotificationEventType, Record<NotificationChannel, (bookin
     email: sendBookingCancelledEmail,
     line: sendLineBookingCancelled,
     whatsapp: sendWhatsAppBookingCancelled,
+  },
+  booking_reminder: {
+    email: sendBookingReminderEmail,
+    line: sendLineBookingReminder,
+    whatsapp: sendWhatsAppBookingReminder,
   },
 };
 
@@ -128,4 +140,46 @@ export async function retryFailedNotifications(): Promise<{ attempted: number }>
     await attemptChannel(r.business_id, r.booking_id, r.event_type, r.channel);
   }
   return { attempted: rows.length };
+}
+
+/**
+ * Called by the daily cron (src/app/api/cron/notification-retry/route.ts —
+ * shared with the retry sweep rather than a second cron entry, since
+ * Vercel's Hobby plan caps both cron frequency AND job count) to remind
+ * customers of an upcoming CONFIRMED booking.
+ *
+ * The window is 24-48h ahead, not "exactly 24h": a once-daily sweep can't
+ * hit an exact offset for every booking regardless of when in the day it
+ * starts, so this instead guarantees every booking gets reminded exactly
+ * once, sometime 1-2 days out — the best precision available without a
+ * finer-grained cron (Hobby plan again). notification_log's UNIQUE
+ * constraint is what makes "exactly once" safe to rely on here: a booking
+ * still inside the window on a later day's sweep is silently skipped
+ * because attemptChannel already sees a 'sent' row for it.
+ */
+export async function remindUpcomingBookings(): Promise<{ attempted: number }> {
+  const { rows } = await adminPool.query<{ id: string }>(
+    `SELECT id FROM bookings
+     WHERE status = 'CONFIRMED'
+       AND start_time BETWEEN now() + interval '24 hours' AND now() + interval '48 hours'`
+  );
+
+  for (const r of rows) {
+    await notify("booking_reminder", r.id);
+  }
+  return { attempted: rows.length };
+}
+
+/**
+ * Called by rescheduleBooking (book/manage/[bookingId]/actions.ts) right
+ * after a booking's start_time actually moves — without this, a booking
+ * reminded once would never be reminded again for its new time, since
+ * notification_log still shows 'sent' for the (booking, booking_reminder,
+ * channel) key regardless of which start_time that reminder was about.
+ */
+export async function clearReminderRecord(bookingId: string): Promise<void> {
+  await adminPool.query(
+    `DELETE FROM notification_log WHERE booking_id = $1 AND event_type = 'booking_reminder'`,
+    [bookingId]
+  );
 }

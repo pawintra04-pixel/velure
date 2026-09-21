@@ -3,7 +3,7 @@
 import { adminPool, withBusinessContext } from "@/db/client";
 import { getAvailableSlots, type Slot } from "@/lib/availability";
 import { releaseClassSeat } from "@/lib/classes";
-import { notify } from "@/lib/notifications";
+import { notify, clearReminderRecord } from "@/lib/notifications";
 import { isSlotConflictError } from "@/lib/staff-availability";
 
 type PolicyCheck = {
@@ -131,7 +131,11 @@ export async function rescheduleBooking(
     if (!result.rowCount) {
       return { ok: false, error: "This booking was already changed — please refresh and try again." };
     }
-    void notify("booking_rescheduled", bookingId);
+    // Clear any prior reminder record before notifying — otherwise a
+    // booking reminded once for its old time would never be reminded
+    // again for the new one (notification_log would already show 'sent'
+    // for this booking's reminder, regardless of which time it was about).
+    void clearReminderRecord(bookingId).then(() => notify("booking_rescheduled", bookingId));
     return { ok: true };
   } catch (err) {
     // The overlap EXCLUDE constraint applies to UPDATEs too, not just

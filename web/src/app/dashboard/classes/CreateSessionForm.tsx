@@ -5,21 +5,33 @@ import { createClassSession, type ActionResult } from "./actions";
 
 type Option = { id: string; name: string };
 
-export function CreateSessionForm({ services, staff }: { services: Option[]; staff: Option[] }) {
+const WEEKDAYS = [
+  { value: "0", label: "Sun" },
+  { value: "1", label: "Mon" },
+  { value: "2", label: "Tue" },
+  { value: "3", label: "Wed" },
+  { value: "4", label: "Thu" },
+  { value: "5", label: "Fri" },
+  { value: "6", label: "Sat" },
+];
+
+export function CreateSessionForm({
+  services,
+  staff,
+  resources,
+}: {
+  services: Option[];
+  staff: Option[];
+  resources: Option[];
+}) {
   const [state, formAction, pending] = useActionState<ActionResult | null, FormData>(
     createClassSession,
     null
   );
 
-  if (services.length === 0) {
-    return (
-      <div className="mt-3 rounded-2xl border border-border bg-surface p-5 text-sm text-ink-muted">
-        No class-type services yet — set a service&apos;s capacity to 2 or more on the Services
-        page to schedule sessions for it.
-      </div>
-    );
-  }
-
+  // The caller (ClassesPage) only renders this form once at least one
+  // class-capable service exists — see its own "Classes aren't set up yet"
+  // panel for that empty state — so `services` is never empty here.
   return (
     <form action={formAction} className="mt-3 flex flex-col gap-3 rounded-2xl border border-border bg-surface p-5">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -42,11 +54,54 @@ export function CreateSessionForm({ services, staff }: { services: Option[]; sta
         <input type="date" name="date" className="rounded-lg border border-border px-3 py-2 text-sm" />
         <input type="time" name="time" className="rounded-lg border border-border px-3 py-2 text-sm" />
       </div>
+
+      <details className="rounded-lg border border-border px-3 py-2">
+        <summary className="cursor-pointer text-sm text-ink-secondary">
+          Repeat weekly (optional)
+        </summary>
+        <div className="mt-3 flex flex-col gap-3">
+          <div className="flex flex-wrap gap-2">
+            {WEEKDAYS.map((d) => (
+              <label
+                key={d.value}
+                className="flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-xs text-ink-secondary has-checked:border-sunburst has-checked:bg-sunburst/10 has-checked:text-ink"
+              >
+                <input type="checkbox" name="weekdays" value={d.value} className="sr-only" />
+                {d.label}
+              </label>
+            ))}
+          </div>
+          <div>
+            <label className="text-xs text-ink-muted">Repeat until</label>
+            <input
+              type="date"
+              name="repeatUntil"
+              className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
+            />
+          </div>
+          <p className="text-xs text-ink-muted">
+            Creates one session on every checked day of the week between the start date above and
+            &quot;Repeat until&quot;. Leave this closed for a single one-off session.
+          </p>
+        </div>
+      </details>
+
+      {resources.length > 0 && (
+        <select name="resourceId" className="rounded-lg border border-border px-3 py-2 text-sm" defaultValue="">
+          <option value="">No room / studio</option>
+          {resources.map((r) => (
+            <option key={r.id} value={r.id}>
+              {r.name}
+            </option>
+          ))}
+        </select>
+      )}
       {state && !state.ok && <div className="text-sm text-[#d03b3b]">{state.error}</div>}
+      {state && state.ok && state.message && <div className="text-sm text-[#1b8a5a]">{state.message}</div>}
       <button
         type="submit"
         disabled={pending || staff.length === 0}
-        className="self-start rounded-xl bg-accent px-4 py-2.5 text-sm font-medium text-accent-ink disabled:opacity-50"
+        className="self-start rounded-xl bg-sunburst px-4 py-2.5 text-sm font-medium text-ink disabled:opacity-50"
       >
         {pending ? "Scheduling..." : "Schedule session"}
       </button>

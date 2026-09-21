@@ -65,16 +65,27 @@ export async function updateServiceDetails(
   const serviceId = String(formData.get("serviceId") ?? "");
   const description = String(formData.get("description") ?? "").trim();
   const imageUrl = String(formData.get("imageUrl") ?? "").trim();
+  const capacityRaw = String(formData.get("capacity") ?? "").trim();
+  const capacity = capacityRaw ? Number(capacityRaw) : null;
 
   if (!serviceId) return { ok: false, error: "Missing service." };
   if (imageUrl && !/^https?:\/\//.test(imageUrl)) {
     return { ok: false, error: "Image must be a valid http(s) URL." };
   }
+  if (capacity !== null && (!Number.isInteger(capacity) || capacity < 2)) {
+    return { ok: false, error: "Capacity must be a whole number of 2 or more (leave blank for a regular 1:1 service)." };
+  }
 
+  // Each class_session snapshots its own capacity at creation time (see
+  // classes/actions.ts createOneSession) rather than referencing this
+  // column live, so changing it here only takes effect for sessions
+  // scheduled after the change — already-scheduled ones keep whatever
+  // capacity they were created with, same as changing a service's price
+  // never touches bookings already made at the old price.
   await withBusinessContext(owner.businessId, (c) =>
     c.query(
-      `UPDATE services SET description = $1, image_url = $2 WHERE id = $3`,
-      [description || null, imageUrl || null, serviceId]
+      `UPDATE services SET description = $1, image_url = $2, capacity = $3 WHERE id = $4`,
+      [description || null, imageUrl || null, capacity, serviceId]
     )
   );
 

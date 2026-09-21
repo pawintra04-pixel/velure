@@ -131,6 +131,22 @@ export function ServiceCard({ service }: { service: Service }) {
                 className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm font-normal"
               />
             </label>
+            <label className="text-sm font-medium text-ink-secondary">
+              Capacity (seats)
+              <input
+                name="capacity"
+                type="number"
+                min={2}
+                step={1}
+                defaultValue={service.capacity ?? ""}
+                placeholder="Leave blank for a regular 1:1 service"
+                className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm font-normal"
+              />
+              <span className="mt-1 block text-xs font-normal text-ink-muted">
+                Only affects sessions scheduled after you save — sessions already on the
+                calendar keep their original capacity.
+              </span>
+            </label>
             {detailsState && !detailsState.ok && (
               <div className="text-sm text-[#d03b3b]">{detailsState.error}</div>
             )}

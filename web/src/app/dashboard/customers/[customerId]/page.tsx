@@ -4,7 +4,16 @@ import { requireOwner } from "@/lib/auth";
 import { getCustomer, getBookingsForCustomer } from "@/lib/customers-data";
 import { BookingRow, BookingList } from "@/app/dashboard/bookings/BookingRow";
 import { NotesForm } from "./NotesForm";
+import { TagsForm } from "./TagsForm";
+import { formatBaht } from "@/lib/money";
 import { PageShell, Surface } from "@/components/dashboard/PageShell";
+
+function formatLastVisit(iso: string | null): string {
+  if (!iso) return "Never";
+  return new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Bangkok", dateStyle: "medium" }).format(
+    new Date(iso)
+  );
+}
 
 export default async function CustomerDetailPage({
   params,
@@ -39,11 +48,38 @@ export default async function CustomerDetailPage({
         </div>
       </div>
 
-      <div className="mt-6 max-w-[640px]">
-        <div className="text-[13.5px] font-semibold uppercase tracking-wide text-ink">Notes</div>
-        <Surface className="mt-2 p-4">
-          <NotesForm customerId={customer.id} notes={customer.notes ?? ""} />
+      <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Surface className="p-4">
+          <div className="text-xs text-ink-muted">Total spend</div>
+          <div className="mt-1 text-lg font-semibold">{formatBaht(customer.totalSpend)}</div>
         </Surface>
+        <Surface className="p-4">
+          <div className="text-xs text-ink-muted">Visits</div>
+          <div className="mt-1 text-lg font-semibold">{customer.visitCount}</div>
+        </Surface>
+        <Surface className="p-4">
+          <div className="text-xs text-ink-muted">No-shows</div>
+          <div className="mt-1 text-lg font-semibold">{customer.noShowCount}</div>
+        </Surface>
+        <Surface className="p-4">
+          <div className="text-xs text-ink-muted">Last visit</div>
+          <div className="mt-1 text-lg font-semibold">{formatLastVisit(customer.lastVisit)}</div>
+        </Surface>
+      </div>
+
+      <div className="mt-6 grid max-w-[640px] grid-cols-1 gap-6 sm:grid-cols-2">
+        <div>
+          <div className="text-[13.5px] font-semibold uppercase tracking-wide text-ink">Notes</div>
+          <Surface className="mt-2 p-4">
+            <NotesForm customerId={customer.id} notes={customer.notes ?? ""} />
+          </Surface>
+        </div>
+        <div>
+          <div className="text-[13.5px] font-semibold uppercase tracking-wide text-ink">Tags</div>
+          <Surface className="mt-2 p-4">
+            <TagsForm customerId={customer.id} tags={customer.tags} />
+          </Surface>
+        </div>
       </div>
 
       <div className="mt-8">

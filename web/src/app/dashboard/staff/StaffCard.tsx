@@ -8,6 +8,7 @@ import {
   deleteStaffBlock,
   type ActionResult,
 } from "./actions";
+import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 
 type DayHours = {
   day_of_week: number;
@@ -58,7 +59,16 @@ export function StaffCard({ staff }: { staff: Staff }) {
 
   return (
     <div className="rounded-2xl border border-border bg-surface p-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      {/*
+        sm:flex-wrap: the button cluster's flex-shrink:0 sizes it to its
+        widest unwrapped line — normally just two short buttons, but the
+        Delete trigger can also render a full-sentence error/success line
+        beneath itself (see ConfirmSubmitButton). Without wrap, that line's
+        width gets forced onto this row and starves the min-w-0 name column
+        instead of the button cluster simply dropping to its own full-width
+        line where the message can wrap normally.
+      */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <div className="min-w-0">
           <div className="font-medium">{staff.name}</div>
           <div className="mt-1 text-sm text-ink-muted">
@@ -73,15 +83,17 @@ export function StaffCard({ staff }: { staff: Staff }) {
           >
             {expanded ? "Close" : "Hours"}
           </button>
-          <form action={deleteStaff}>
-            <input type="hidden" name="staffId" value={staff.id} />
-            <button
-              type="submit"
-              className="rounded-full border border-border px-3 py-1.5 text-sm text-ink-secondary hover:bg-page"
-            >
-              Delete
-            </button>
-          </form>
+          <ConfirmSubmitButton
+            action={deleteStaff}
+            hiddenFields={{ staffId: staff.id }}
+            label="Delete"
+            pendingLabel="Deleting…"
+            confirmTitle={`Delete ${staff.name}?`}
+            confirmDescription="This removes them from Team and unassigns them from any services. Staff with any booking history — including past or cancelled bookings — can't be deleted, to keep existing reports accurate."
+            confirmLabel="Delete"
+            danger
+            buttonClassName="rounded-full border border-border px-3 py-1.5 text-sm text-ink-secondary hover:bg-page"
+          />
         </div>
       </div>
 

@@ -1,19 +1,46 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { addStaff, type ActionResult } from "./actions";
 
 export function AddStaffForm({ services }: { services: { id: string; name: string }[] }) {
+  const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState<ActionResult | null, FormData>(
     addStaff,
     null
   );
 
+  // Adjusted during render (not in an effect) — same pattern Sidebar.tsx
+  // uses for reacting to a value changing between renders.
+  const [prevState, setPrevState] = useState(state);
+  if (state !== prevState) {
+    setPrevState(state);
+    if (state?.ok) setOpen(false);
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="rounded-lg bg-sunburst px-4 py-2 text-sm font-medium text-ink transition-[filter] hover:brightness-95"
+      >
+        + Add team member
+      </button>
+    );
+  }
+
   return (
     <form
       action={formAction}
-      className="mt-3 flex flex-col gap-3 rounded-2xl border border-border bg-surface p-5"
+      className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-5"
     >
+      <div className="flex items-center justify-between">
+        <div className="text-sm font-medium text-ink-secondary">Add a team member</div>
+        <button type="button" onClick={() => setOpen(false)} className="text-xs text-ink-muted hover:text-ink-secondary">
+          Close
+        </button>
+      </div>
       <input
         name="name"
         placeholder="Name"
@@ -38,7 +65,7 @@ export function AddStaffForm({ services }: { services: { id: string; name: strin
       <button
         type="submit"
         disabled={pending}
-        className="rounded-xl bg-accent py-2.5 text-sm font-medium text-accent-ink disabled:opacity-50"
+        className="rounded-xl bg-sunburst py-2.5 text-sm font-medium text-ink disabled:opacity-50"
       >
         {pending ? "Adding..." : "Add team member"}
       </button>

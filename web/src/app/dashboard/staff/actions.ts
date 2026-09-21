@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { requireOwner } from "@/lib/auth";
 import { withBusinessContext } from "@/db/client";
-import { isStaffFreeForRange } from "@/lib/staff-availability";
+import { isStaffFreeForRange, isSlotConflictError } from "@/lib/staff-availability";
+import type { ConfirmActionResult } from "@/components/ConfirmSubmitButton";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -145,7 +146,7 @@ export async function createStaffBlock(
       );
     });
   } catch (err) {
-    if ((err as { code?: string }).code === "23P01" || (err as Error).message === "slot_taken") {
+    if (isSlotConflictError(err) || (err as Error).message === "slot_taken") {
       return { ok: false, error: "That staff member already has something scheduled at this time." };
     }
     console.error("createStaffBlock failed", err);
@@ -167,7 +168,18 @@ export async function deleteStaffBlock(formData: FormData): Promise<void> {
   revalidatePath("/dashboard/staff");
 }
 
-export async function deleteStaff(formData: FormData): Promise<void> {
+// A staff member with existing bookings can't be deleted (the FK from
+// bookings/class_sessions has no cascade, by design — losing who a past
+// booking was with would corrupt history and reports). That's an expected,
+// recoverable outcome, not a crash, so it's reported the same way every
+// other action in this app reports a known failure — via a typed result —
+// rather than a thrown Error, which would otherwise escape to the
+// dashboard's error boundary and show a generic "Something went wrong"
+// page for what the owner should just see as an inline message.
+export async function deleteStaff(
+  _prev: ConfirmActionResult | null,
+  formData: FormData
+): Promise<ConfirmActionResult> {
   const owner = await requireOwner();
   const staffId = String(formData.get("staffId") ?? "");
 
@@ -178,12 +190,16 @@ export async function deleteStaff(formData: FormData): Promise<void> {
     });
   } catch (err) {
     if ((err as { code?: string }).code === "23503") {
-      throw new Error(
-        "Can't delete a staff member who has existing bookings. Cancel or reassign those bookings first."
-      );
+      return {
+        ok: false,
+        error:
+          "Can't delete a staff member who has any booking history, including past or cancelled bookings — this keeps existing reports accurate.",
+      };
     }
-    throw err;
+    console.error("deleteStaff failed", err);
+    return { ok: false, error: "Something went wrong. Please try again." };
   }
 
   revalidatePath("/dashboard/staff");
+  return { ok: true, message: "Team member removed" };
 }

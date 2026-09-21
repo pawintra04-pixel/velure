@@ -2,6 +2,7 @@ import { requireOwner } from "@/lib/auth";
 import { withBusinessContext } from "@/db/client";
 import { AddStaffForm } from "./AddStaffForm";
 import { StaffCard, type Staff } from "./StaffCard";
+import { PageShell, PageHeader } from "@/components/dashboard/PageShell";
 
 export default async function StaffPage() {
   const owner = await requireOwner();
@@ -40,27 +41,28 @@ export default async function StaffPage() {
   });
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-8">
-        <h1 className="text-2xl font-semibold">Team</h1>
-        <p className="mt-1 text-sm text-ink-secondary">
-          Staff who can be booked for your services.
-        </p>
+    <PageShell width="standard">
+        <div className="border-b border-border pb-5">
+          <PageHeader
+            title="Team"
+            description="Staff who can be booked for your services."
+            actions={<AddStaffForm services={services} />}
+          />
+        </div>
 
-        <div className="mt-6 flex flex-col gap-3">
-          {staff.length === 0 && (
-            <div className="rounded-2xl border border-border bg-surface p-5 text-sm text-ink-muted">
-              No team members yet — add your first one below.
+        <div className="mt-6">
+          {staff.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-ink-muted">
+              No team members yet — add your first one to get started.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+              {staff.map((s) => (
+                <StaffCard key={s.id} staff={s} />
+              ))}
             </div>
           )}
-          {staff.map((s) => (
-            <StaffCard key={s.id} staff={s} />
-          ))}
         </div>
-
-        <div className="mt-8">
-          <h2 className="text-sm font-medium text-ink-secondary">Add a team member</h2>
-          <AddStaffForm services={services} />
-        </div>
-    </div>
+    </PageShell>
   );
 }

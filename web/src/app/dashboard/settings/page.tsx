@@ -4,13 +4,24 @@ import { stripe } from "@/lib/stripe";
 import { ProfileForm } from "./ProfileForm";
 import { HoursForm } from "./HoursForm";
 import { PaymentsSection } from "./PaymentsSection";
+import { SettingsTabs, SETTINGS_SECTIONS, type SettingsSectionKey } from "./SettingsTabs";
+import { PageShell, PageHeader, Surface, ReadableSection } from "@/components/dashboard/PageShell";
 
-export default async function SettingsPage() {
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ section?: string }>;
+}) {
   const owner = await requireOwner();
+  const { section: sectionParam } = await searchParams;
+  const section: SettingsSectionKey = SETTINGS_SECTIONS.some((s) => s.key === sectionParam)
+    ? (sectionParam as SettingsSectionKey)
+    : "business";
 
   const { business, hours } = await withBusinessContext(owner.businessId, async (c) => {
     const { rows: [business] } = await c.query(
-      `SELECT name, business_type, logo_url, description, address, contact_phone, contact_email, stripe_account_id
+      `SELECT name, business_type, logo_url, description, address, contact_phone, contact_email,
+              stripe_account_id, accepts_card, accepts_promptpay, accepts_cash
        FROM businesses WHERE id = $1`,
       [owner.businessId]
     );
@@ -30,18 +41,34 @@ export default async function SettingsPage() {
     : false;
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-8">
-      <h1 className="text-2xl font-semibold">Settings</h1>
-      <p className="mt-1 text-sm text-ink-secondary">
-        Your business profile and opening hours — shown to customers on your public booking page
-        and used to keep bookings inside real operating hours.
-      </p>
-
-      <div className="mt-6 flex flex-col gap-6">
-        <PaymentsSection hasAccount={Boolean(business.stripe_account_id)} chargesEnabled={chargesEnabled} />
-        <ProfileForm business={business} />
-        <HoursForm hours={hours} />
+    <PageShell width="standard">
+      <div className="border-b border-border pb-5">
+        <PageHeader
+          title="Settings"
+          description="Your business profile, hours, and payments — shown to customers on your public booking page and used to keep bookings inside real operating hours."
+        />
+        <div className="mt-5">
+          <SettingsTabs active={section} />
+        </div>
       </div>
-    </div>
+
+      <div className="mt-6">
+        <ReadableSection>
+          <Surface>
+            {section === "business" && <ProfileForm business={business} />}
+            {section === "hours" && <HoursForm hours={hours} />}
+            {section === "payments" && (
+              <PaymentsSection
+                hasAccount={Boolean(business.stripe_account_id)}
+                chargesEnabled={chargesEnabled}
+                acceptsCard={business.accepts_card}
+                acceptsPromptpay={business.accepts_promptpay}
+                acceptsCash={business.accepts_cash}
+              />
+            )}
+          </Surface>
+        </ReadableSection>
+      </div>
+    </PageShell>
   );
 }

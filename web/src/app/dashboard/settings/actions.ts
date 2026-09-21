@@ -85,3 +85,28 @@ export async function updateBusinessHours(
   revalidatePath("/dashboard/settings");
   return { ok: true };
 }
+
+export async function updatePaymentMethods(
+  _prev: ActionResult | null,
+  formData: FormData
+): Promise<ActionResult> {
+  const owner = await requireOwner();
+
+  const acceptsCard = formData.get("acceptsCard") === "on";
+  const acceptsPromptpay = formData.get("acceptsPromptpay") === "on";
+  const acceptsCash = formData.get("acceptsCash") === "on";
+
+  if (!acceptsCard && !acceptsPromptpay && !acceptsCash) {
+    return { ok: false, error: "Turn on at least one payment method, or customers won't be able to pay for anything." };
+  }
+
+  await withBusinessContext(owner.businessId, (c) =>
+    c.query(
+      `UPDATE businesses SET accepts_card = $1, accepts_promptpay = $2, accepts_cash = $3 WHERE id = $4`,
+      [acceptsCard, acceptsPromptpay, acceptsCash, owner.businessId]
+    )
+  );
+
+  revalidatePath("/dashboard/settings");
+  return { ok: true };
+}

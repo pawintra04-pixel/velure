@@ -21,11 +21,10 @@ export function HoursForm({ hours }: { hours: DayHours[] }) {
   );
 
   return (
-    <form action={formAction} className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-5">
-      <div className="text-sm font-medium text-ink-secondary">Opening hours</div>
-      <div className="flex flex-col gap-2">
+    <form action={formAction} className="flex flex-col gap-3">
+      <div className="flex flex-col divide-y divide-border">
         {hours.map((h) => (
-          <div key={h.day_of_week} className="flex flex-wrap items-center gap-3 text-sm">
+          <div key={h.day_of_week} className="flex flex-wrap items-center gap-3 py-2.5 text-sm">
             <span className="w-24 shrink-0">{DAY_LABELS[h.day_of_week]}</span>
             <label className="flex items-center gap-1.5 text-ink-secondary">
               <input
@@ -63,7 +62,7 @@ export function HoursForm({ hours }: { hours: DayHours[] }) {
       <button
         type="submit"
         disabled={pending}
-        className="self-start rounded-xl bg-accent px-4 py-2.5 text-sm font-medium text-accent-ink disabled:opacity-50"
+        className="self-start rounded-xl bg-sunburst px-4 py-2.5 text-sm font-medium text-ink disabled:opacity-50"
       >
         {pending ? "Saving..." : "Save hours"}
       </button>

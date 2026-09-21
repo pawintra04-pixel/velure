@@ -22,7 +22,7 @@ export function ProfileForm({ business }: { business: Business }) {
   );
 
   return (
-    <form action={formAction} className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-5">
+    <form action={formAction} className="flex flex-col gap-4 max-w-xl">
       <label className="text-sm font-medium text-ink-secondary">
         Business name
         <input
@@ -103,7 +103,7 @@ export function ProfileForm({ business }: { business: Business }) {
       <button
         type="submit"
         disabled={pending}
-        className="self-start rounded-xl bg-accent px-4 py-2.5 text-sm font-medium text-accent-ink disabled:opacity-50"
+        className="self-start rounded-xl bg-sunburst px-4 py-2.5 text-sm font-medium text-ink disabled:opacity-50"
       >
         {pending ? "Saving..." : "Save profile"}
       </button>

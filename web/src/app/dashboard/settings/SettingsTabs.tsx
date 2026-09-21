@@ -4,6 +4,7 @@ export const SETTINGS_SECTIONS = [
   { key: "business", label: "Business" },
   { key: "hours", label: "Opening hours" },
   { key: "payments", label: "Payments" },
+  { key: "whatsapp", label: "WhatsApp" },
 ] as const;
 
 export type SettingsSectionKey = (typeof SETTINGS_SECTIONS)[number]["key"];

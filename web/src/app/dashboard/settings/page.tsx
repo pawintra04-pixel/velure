@@ -4,6 +4,7 @@ import { stripe } from "@/lib/stripe";
 import { ProfileForm } from "./ProfileForm";
 import { HoursForm } from "./HoursForm";
 import { PaymentsSection } from "./PaymentsSection";
+import { WhatsAppSection } from "./WhatsAppSection";
 import { SettingsTabs, SETTINGS_SECTIONS, type SettingsSectionKey } from "./SettingsTabs";
 import { PageShell, PageHeader, Surface, ReadableSection } from "@/components/dashboard/PageShell";
 
@@ -21,7 +22,7 @@ export default async function SettingsPage({
   const { business, hours } = await withBusinessContext(owner.businessId, async (c) => {
     const { rows: [business] } = await c.query(
       `SELECT name, business_type, logo_url, description, address, contact_phone, contact_email,
-              stripe_account_id, accepts_card, accepts_promptpay, accepts_cash
+              stripe_account_id, accepts_card, accepts_promptpay, accepts_cash, whatsapp_phone_number_id
        FROM businesses WHERE id = $1`,
       [owner.businessId]
     );
@@ -65,6 +66,9 @@ export default async function SettingsPage({
                 acceptsPromptpay={business.accepts_promptpay}
                 acceptsCash={business.accepts_cash}
               />
+            )}
+            {section === "whatsapp" && (
+              <WhatsAppSection connected={Boolean(business.whatsapp_phone_number_id)} />
             )}
           </Surface>
         </ReadableSection>

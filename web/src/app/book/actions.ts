@@ -3,8 +3,7 @@
 import { withBusinessContext } from "@/db/client";
 import { stripe } from "@/lib/stripe";
 import { getAvailableSlots, type Slot } from "@/lib/availability";
-import { sendBookingConfirmationEmail } from "@/lib/email";
-import { sendLineBookingConfirmation } from "@/lib/line";
+import { notify } from "@/lib/notifications";
 import { claimClassSeat, releaseClassSeat } from "@/lib/classes";
 import { getOrCreateAnonId } from "@/lib/anon-session";
 import { isStaffFreeForRange, isSlotConflictError } from "@/lib/staff-availability";
@@ -394,8 +393,7 @@ export async function completeBookingDetails(input: {
   }
 
   if (setup.amount === 0 || paymentMethod === "cash") {
-    await sendBookingConfirmationEmail(bookingId);
-    await sendLineBookingConfirmation(bookingId);
+    await notify("booking_confirmed", bookingId);
     return { ok: true, bookingId, needsPayment: false };
   }
 

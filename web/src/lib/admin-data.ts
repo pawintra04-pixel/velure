@@ -95,3 +95,38 @@ export async function listRecentErrors(limit = 50): Promise<AppErrorRow[]> {
     businessName: r.business_name,
   }));
 }
+
+export type NotificationFailureRow = {
+  id: string;
+  attemptedAt: string;
+  eventType: string;
+  channel: string;
+  error: string | null;
+  retryCount: number;
+  businessName: string | null;
+};
+
+// 'skipped' rows are excluded on purpose — that's "nothing to send to"
+// (no email/phone/LINE on file), a normal outcome, not something the
+// platform operator needs to act on. Only 'failed' (an actual send
+// attempt that errored) belongs here.
+export async function listRecentNotificationFailures(limit = 50): Promise<NotificationFailureRow[]> {
+  const { rows } = await adminPool.query(
+    `SELECT n.id, n.attempted_at, n.event_type, n.channel, n.error, n.retry_count, b.name AS business_name
+     FROM notification_log n
+     LEFT JOIN businesses b ON b.id = n.business_id
+     WHERE n.status = 'failed'
+     ORDER BY n.attempted_at DESC
+     LIMIT $1`,
+    [limit]
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    attemptedAt: r.attempted_at,
+    eventType: r.event_type,
+    channel: r.channel,
+    error: r.error,
+    retryCount: r.retry_count,
+    businessName: r.business_name,
+  }));
+}

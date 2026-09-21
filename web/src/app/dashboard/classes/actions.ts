@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireOwner } from "@/lib/auth";
 import { withBusinessContext } from "@/db/client";
 import { isStaffFreeForRange, isSlotConflictError } from "@/lib/staff-availability";
-import { sendBookingCancelledEmail } from "@/lib/email";
+import { notify } from "@/lib/notifications";
 
 export type ActionResult = { ok: true; message?: string } | { ok: false; error: string };
 
@@ -215,7 +215,7 @@ export async function cancelClassSession(
   revalidatePath("/dashboard/calendar");
   revalidatePath("/dashboard/bookings");
 
-  for (const id of cancelledIds) void sendBookingCancelledEmail(id);
+  for (const id of cancelledIds) void notify("booking_cancelled", id);
 
   return {
     ok: true,

@@ -3,7 +3,7 @@
 import { adminPool, withBusinessContext } from "@/db/client";
 import { getAvailableSlots, type Slot } from "@/lib/availability";
 import { releaseClassSeat } from "@/lib/classes";
-import { sendBookingRescheduledEmail, sendBookingCancelledEmail } from "@/lib/email";
+import { notify } from "@/lib/notifications";
 import { isSlotConflictError } from "@/lib/staff-availability";
 
 type PolicyCheck = {
@@ -90,7 +90,7 @@ export async function cancelBooking(bookingId: string): Promise<ManageActionResu
   }
   // Fire-and-forget, after the cancellation has already committed — an
   // email failure must never undo or block a real cancellation.
-  void sendBookingCancelledEmail(bookingId);
+  void notify("booking_cancelled", bookingId);
   return { ok: true };
 }
 
@@ -131,7 +131,7 @@ export async function rescheduleBooking(
     if (!result.rowCount) {
       return { ok: false, error: "This booking was already changed — please refresh and try again." };
     }
-    void sendBookingRescheduledEmail(bookingId);
+    void notify("booking_rescheduled", bookingId);
     return { ok: true };
   } catch (err) {
     // The overlap EXCLUDE constraint applies to UPDATEs too, not just

@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { adminPool } from "@/db/client";
 import { decryptSecret } from "@/lib/crypto";
+import type { SendResult } from "@/lib/notification-types";
 
 const GRAPH_API_BASE = "https://graph.facebook.com/v21.0";
 
@@ -103,22 +104,32 @@ export function verifyWebhookSignature(rawBody: string, signatureHeader: string 
   return timingSafeEqual(a, b);
 }
 
-async function callGraphApi(accessToken: string, phoneNumberId: string, body: unknown): Promise<void> {
-  const res = await fetch(`${GRAPH_API_BASE}/${phoneNumberId}/messages`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${accessToken}`,
-    },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    console.error(`[whatsapp] send failed (${res.status})`, await res.text());
+async function callGraphApi(accessToken: string, phoneNumberId: string, body: unknown): Promise<SendResult> {
+  try {
+    const res = await fetch(`${GRAPH_API_BASE}/${phoneNumberId}/messages`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      // Outside the customer's 24h session window this fails unless the
+      // message uses an approved Template — expected until Meta approves
+      // one (see WhatsAppSection.tsx), not necessarily a real bug.
+      console.error(`[whatsapp] send failed (${res.status})`, await res.text());
+      return "failed";
+    }
+    return "sent";
+  } catch (err) {
+    console.error(`[whatsapp] send failed`, err);
+    return "failed";
   }
 }
 
-async function sendMenu(business: BusinessWhatsApp, phoneNumberId: string, to: string, bodyText: string): Promise<void> {
-  await callGraphApi(business.accessToken, phoneNumberId, {
+async function sendMenu(business: BusinessWhatsApp, phoneNumberId: string, to: string, bodyText: string): Promise<SendResult> {
+  return callGraphApi(business.accessToken, phoneNumberId, {
     messaging_product: "whatsapp",
     to,
     type: "interactive",
@@ -132,8 +143,8 @@ async function sendMenu(business: BusinessWhatsApp, phoneNumberId: string, to: s
   });
 }
 
-async function sendText(business: BusinessWhatsApp, phoneNumberId: string, to: string, text: string): Promise<void> {
-  await callGraphApi(business.accessToken, phoneNumberId, {
+async function sendText(business: BusinessWhatsApp, phoneNumberId: string, to: string, text: string): Promise<SendResult> {
+  return callGraphApi(business.accessToken, phoneNumberId, {
     messaging_product: "whatsapp",
     to,
     type: "text",
@@ -249,4 +260,109 @@ export async function handleIncomingMessage(params: {
       `Tap a button above, or type "book" to get your booking link.`
     );
   }
+}
+
+// --- Proactive notifications (business-initiated, e.g. "your booking is
+// confirmed") — distinct from everything above, which only ever replies to
+// a customer who messaged first. These are the ones Phase 1's notify()
+// calls, and the ones most likely to hit Meta's 24-hour session window:
+// outside 24h of the customer's last message, WhatsApp requires a
+// pre-approved Template message instead of a free-form one, which this
+// project doesn't have yet (see WhatsAppSection.tsx and the Phase 1 plan's
+// point 3/10) — expect "failed" here until that's set up, not a bug.
+
+async function getBusinessWhatsAppByBusinessId(businessId: string): Promise<(BusinessWhatsApp & { phoneNumberId: string }) | null> {
+  const { rows: [row] } = await adminPool.query(
+    `SELECT id, slug, name, whatsapp_phone_number_id, whatsapp_access_token_encrypted
+     FROM businesses WHERE id = $1`,
+    [businessId]
+  );
+  if (!row || !row.whatsapp_phone_number_id || !row.whatsapp_access_token_encrypted) return null;
+  return {
+    businessId: row.id,
+    slug: row.slug,
+    name: row.name,
+    accessToken: decryptSecret(row.whatsapp_access_token_encrypted),
+    phoneNumberId: row.whatsapp_phone_number_id,
+  };
+}
+
+// customers.phone is whatever a customer typed on the web booking form —
+// usually a local "0812345678". WhatsApp's `to` field wants an
+// international number with no leading "+", so a leading "0" becomes
+// Thailand's "66" country code. Same deliberately-loose-for-Thailand
+// heuristic as last9Digits above; a customer who signed up with a foreign
+// number already in international format just passes through unchanged.
+function phoneToWaId(phone: string): string {
+  const digits = phone.replace(/\D/g, "");
+  return digits.startsWith("0") ? "66" + digits.slice(1) : digits;
+}
+
+type BookingWhatsAppRow = {
+  customer_phone: string | null;
+  service_name: string;
+  staff_name: string;
+  start_time: string;
+};
+
+async function fetchProactiveBookingRow(bookingId: string): Promise<{ businessId: string; row: BookingWhatsAppRow } | null> {
+  const { rows: [row] } = await adminPool.query(
+    `SELECT b.business_id, cu.phone AS customer_phone, s.name AS service_name, st.name AS staff_name, b.start_time
+     FROM bookings b
+     JOIN services s ON s.id = b.service_id
+     JOIN staff st ON st.id = b.staff_id
+     LEFT JOIN customers cu ON cu.id = b.customer_id
+     WHERE b.id = $1`,
+    [bookingId]
+  );
+  if (!row) return null;
+  return { businessId: row.business_id, row };
+}
+
+function formatWaBookingTime(iso: string): string {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Bangkok",
+    dateStyle: "full",
+    timeStyle: "short",
+  }).format(new Date(iso));
+}
+
+async function sendProactiveBookingEvent(
+  bookingId: string,
+  buildText: (row: BookingWhatsAppRow, time: string) => string
+): Promise<SendResult> {
+  const fetched = await fetchProactiveBookingRow(bookingId);
+  if (!fetched || !fetched.row.customer_phone) {
+    console.log(`[whatsapp] no customer phone on file for booking ${bookingId} — skipping`);
+    return "skipped";
+  }
+  const business = await getBusinessWhatsAppByBusinessId(fetched.businessId);
+  if (!business) {
+    console.log(`[whatsapp] business ${fetched.businessId} has no WhatsApp connected — skipping`);
+    return "skipped";
+  }
+  const waId = phoneToWaId(fetched.row.customer_phone);
+  const time = formatWaBookingTime(fetched.row.start_time);
+  return sendText(business, business.phoneNumberId, waId, buildText(fetched.row, time));
+}
+
+export async function sendWhatsAppBookingConfirmation(bookingId: string): Promise<SendResult> {
+  return sendProactiveBookingEvent(
+    bookingId,
+    (row, time) => `Booking confirmed: ${row.service_name} with ${row.staff_name} on ${time}.`
+  );
+}
+
+export async function sendWhatsAppBookingRescheduled(bookingId: string): Promise<SendResult> {
+  return sendProactiveBookingEvent(
+    bookingId,
+    (row, time) => `Your booking was moved: ${row.service_name} with ${row.staff_name}, new time ${time}.`
+  );
+}
+
+export async function sendWhatsAppBookingCancelled(bookingId: string): Promise<SendResult> {
+  return sendProactiveBookingEvent(
+    bookingId,
+    (row, time) => `Booking cancelled: ${row.service_name}, was scheduled for ${time}.`
+  );
 }

@@ -1,6 +1,7 @@
 import { Resend } from "resend";
 import { adminPool } from "@/db/client";
 import { formatBaht } from "@/lib/money";
+import type { SendResult } from "@/lib/notification-types";
 
 // A missing key or a send failure must never break the booking flow — the
 // booking is already real (paid or confirmed) by the time this runs. Every
@@ -28,10 +29,10 @@ function formatBookingTime(iso: string): string {
  * file. Safe to call from both the free-booking instant-confirm path and
  * the Stripe webhook handler.
  */
-export async function sendBookingConfirmationEmail(bookingId: string): Promise<void> {
+export async function sendBookingConfirmationEmail(bookingId: string): Promise<SendResult> {
   if (!resend) {
     console.log(`[email] RESEND_API_KEY not set — skipping confirmation email for ${bookingId}`);
-    return;
+    return "skipped";
   }
 
   try {
@@ -51,7 +52,7 @@ export async function sendBookingConfirmationEmail(bookingId: string): Promise<v
 
     if (!row || !row.customer_email) {
       console.log(`[email] no customer email on file for booking ${bookingId} — skipping`);
-      return;
+      return "skipped";
     }
 
     const time = formatBookingTime(row.start_time);
@@ -78,8 +79,10 @@ export async function sendBookingConfirmationEmail(bookingId: string): Promise<v
       `,
     });
     console.log(`[email] sent confirmation for booking ${bookingId} to ${row.customer_email}`);
+    return "sent";
   } catch (err) {
     console.error(`[email] failed to send confirmation for booking ${bookingId}`, err);
+    return "failed";
   }
 }
 
@@ -90,10 +93,10 @@ export async function sendBookingConfirmationEmail(bookingId: string): Promise<v
  * here only means the customer doesn't get an email; the booking itself is
  * already moved.
  */
-export async function sendBookingRescheduledEmail(bookingId: string): Promise<void> {
+export async function sendBookingRescheduledEmail(bookingId: string): Promise<SendResult> {
   if (!resend) {
     console.log(`[email] RESEND_API_KEY not set — skipping reschedule email for ${bookingId}`);
-    return;
+    return "skipped";
   }
 
   try {
@@ -113,7 +116,7 @@ export async function sendBookingRescheduledEmail(bookingId: string): Promise<vo
 
     if (!row || !row.customer_email) {
       console.log(`[email] no customer email on file for booking ${bookingId} — skipping reschedule email`);
-      return;
+      return "skipped";
     }
 
     const time = formatBookingTime(row.start_time);
@@ -138,8 +141,10 @@ export async function sendBookingRescheduledEmail(bookingId: string): Promise<vo
       `,
     });
     console.log(`[email] sent reschedule notice for booking ${bookingId} to ${row.customer_email}`);
+    return "sent";
   } catch (err) {
     console.error(`[email] failed to send reschedule notice for booking ${bookingId}`, err);
+    return "failed";
   }
 }
 
@@ -149,10 +154,10 @@ export async function sendBookingRescheduledEmail(bookingId: string): Promise<vo
  * cancelling it from the dashboard, since either one is a real
  * cancellation the customer should hear about.
  */
-export async function sendBookingCancelledEmail(bookingId: string): Promise<void> {
+export async function sendBookingCancelledEmail(bookingId: string): Promise<SendResult> {
   if (!resend) {
     console.log(`[email] RESEND_API_KEY not set — skipping cancellation email for ${bookingId}`);
-    return;
+    return "skipped";
   }
 
   try {
@@ -170,7 +175,7 @@ export async function sendBookingCancelledEmail(bookingId: string): Promise<void
 
     if (!row || !row.customer_email) {
       console.log(`[email] no customer email on file for booking ${bookingId} — skipping cancellation email`);
-      return;
+      return "skipped";
     }
 
     const time = formatBookingTime(row.start_time);
@@ -197,7 +202,9 @@ export async function sendBookingCancelledEmail(bookingId: string): Promise<void
       `,
     });
     console.log(`[email] sent cancellation notice for booking ${bookingId} to ${row.customer_email}`);
+    return "sent";
   } catch (err) {
     console.error(`[email] failed to send cancellation notice for booking ${bookingId}`, err);
+    return "failed";
   }
 }

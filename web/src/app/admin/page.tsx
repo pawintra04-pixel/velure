@@ -1,5 +1,10 @@
 import { requireAdmin } from "@/lib/admin-auth";
-import { getPlatformOverview, listBusinessSummaries, listRecentErrors } from "@/lib/admin-data";
+import {
+  getPlatformOverview,
+  listBusinessSummaries,
+  listRecentErrors,
+  listRecentNotificationFailures,
+} from "@/lib/admin-data";
 import { formatBaht } from "@/lib/money";
 import { PageShell, PageHeader, Surface } from "@/components/dashboard/PageShell";
 import { adminLogOut } from "./login/actions";
@@ -14,10 +19,11 @@ function formatDateTime(iso: string): string {
 
 export default async function AdminPage() {
   const admin = await requireAdmin();
-  const [overview, businesses, errors] = await Promise.all([
+  const [overview, businesses, errors, notificationFailures] = await Promise.all([
     getPlatformOverview(),
     listBusinessSummaries(),
     listRecentErrors(20),
+    listRecentNotificationFailures(20),
   ]);
 
   return (
@@ -133,6 +139,33 @@ export default async function AdminPage() {
                 </span>
               </div>
               <div className="mt-1 text-[#d03b3b]">{e.message}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-8">
+        <h2 className="text-[13.5px] font-semibold uppercase tracking-wide text-ink">
+          Notification failures ({notificationFailures.length})
+        </h2>
+        <p className="mt-1 text-xs text-ink-muted">
+          Channels a booking event actually tried to send through and failed — not shown here:
+          &quot;skipped&quot; (no email/phone/LINE on file, or WhatsApp not connected), which is a
+          normal outcome. Retried automatically every 15 minutes, up to 5 attempts.
+        </p>
+        <div className="mt-3 flex flex-col gap-2">
+          {notificationFailures.length === 0 && (
+            <div className="rounded-2xl border border-dashed border-border p-6 text-center text-sm text-ink-muted">
+              No notification failures recorded.
+            </div>
+          )}
+          {notificationFailures.map((n) => (
+            <div key={n.id} className="rounded-xl border border-border bg-surface p-3 text-sm">
+              <span className="font-mono text-xs text-ink-muted">
+                {formatDateTime(n.attemptedAt)} · {n.channel} · {n.eventType} · retry {n.retryCount}
+                {n.businessName && ` · ${n.businessName}`}
+              </span>
+              <div className="mt-1 text-[#d03b3b]">{n.error ?? "unknown error"}</div>
             </div>
           ))}
         </div>

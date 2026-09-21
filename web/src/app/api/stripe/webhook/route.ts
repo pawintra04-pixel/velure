@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe";
 import { adminPool } from "@/db/client";
-import { sendBookingConfirmationEmail } from "@/lib/email";
-import { sendLineBookingConfirmation } from "@/lib/line";
+import { notify } from "@/lib/notifications";
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
@@ -55,13 +54,14 @@ export async function POST(req: Request) {
       [paymentIntent.id]
     );
     // Only when THIS call is what actually flipped it — not on a webhook
-    // that arrives after the booking was already confirmed, which would
-    // otherwise send a duplicate email even though processed_stripe_events
-    // already dedupes by event.id (a different event.id for the same
-    // payment could still reach here, e.g. a retried/out-of-order delivery).
+    // that arrives after the booking was already confirmed — a different
+    // event.id for the same payment could still reach here (e.g. a
+    // retried/out-of-order delivery) even though processed_stripe_events
+    // already dedupes by event.id. notify() itself is idempotent per
+    // (booking, event, channel) now (notification_log's UNIQUE constraint),
+    // so this is safe even without that outer dedupe.
     if (confirmed) {
-      await sendBookingConfirmationEmail(confirmed.id);
-      await sendLineBookingConfirmation(confirmed.id);
+      await notify("booking_confirmed", confirmed.id);
     }
   } else if (event.type === "payment_intent.payment_failed") {
     const paymentIntent = event.data.object as { id: string };

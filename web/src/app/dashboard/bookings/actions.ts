@@ -6,7 +6,7 @@ import { withBusinessContext } from "@/db/client";
 import { releaseClassSeat } from "@/lib/classes";
 import { isStaffFreeForRange, isSlotConflictError } from "@/lib/staff-availability";
 import { stripe } from "@/lib/stripe";
-import { sendBookingCancelledEmail } from "@/lib/email";
+import { notify } from "@/lib/notifications";
 
 export type ManualBookingResult = { ok: true } | { ok: false; error: string };
 
@@ -275,7 +275,7 @@ export async function updateBookingStatus(
   }
   // The owner cancelling from the dashboard is just as real a cancellation
   // as the customer's own self-service one — fire-and-forget, after commit.
-  if (nextStatus === "CANCELLED") void sendBookingCancelledEmail(bookingId);
+  if (nextStatus === "CANCELLED") void notify("booking_cancelled", bookingId);
   return { ok: true, message: STATUS_CHANGE_MESSAGE[nextStatus] ?? "Booking updated" };
 }
 

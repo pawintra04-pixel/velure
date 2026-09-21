@@ -44,7 +44,8 @@ export async function POST(req: Request) {
       for (const message of value?.messages ?? []) {
         if (!phoneNumberId || !message.from) continue;
         const buttonId: string | null = message.interactive?.button_reply?.id ?? null;
-        await handleIncomingMessage({ phoneNumberId, from: message.from, buttonId });
+        const text: string | null = message.text?.body ?? null;
+        await handleIncomingMessage({ phoneNumberId, from: message.from, buttonId, text });
       }
     }
   }

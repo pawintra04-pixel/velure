@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireOwner } from "@/lib/auth";
 import { withBusinessContext } from "@/db/client";
 import { isStaffFreeForRange, isSlotConflictError } from "@/lib/staff-availability";
+import { sendBookingCancelledEmail } from "@/lib/email";
 
 export type ActionResult = { ok: true; message?: string } | { ok: false; error: string };
 
@@ -182,6 +183,47 @@ export async function updateClassSessionNote(formData: FormData): Promise<void> 
 
   revalidatePath("/dashboard/classes");
   revalidatePath("/dashboard/calendar");
+}
+
+/**
+ * Cancels every active attendee's booking in one go, then resets the
+ * seat counter — the bulk equivalent of calling updateBookingStatus's
+ * CANCELLED transition once per attendee, which is otherwise the only way
+ * to empty a session before deleteClassSession's FK guard will allow
+ * removing it. Attendees each still get their own cancellation email,
+ * same as an individual cancellation would send.
+ */
+export async function cancelClassSession(
+  _prev: ActionResult | null,
+  formData: FormData
+): Promise<ActionResult> {
+  const owner = await requireOwner();
+  const sessionId = String(formData.get("sessionId") ?? "");
+
+  const cancelledIds = await withBusinessContext(owner.businessId, async (c) => {
+    const { rows } = await c.query<{ id: string }>(
+      `UPDATE bookings SET status = 'CANCELLED'
+       WHERE class_session_id = $1 AND status IN ('TEMPORARY_HOLD', 'PAYMENT_PENDING', 'CONFIRMED')
+       RETURNING id`,
+      [sessionId]
+    );
+    await c.query(`UPDATE class_sessions SET seats_booked = 0 WHERE id = $1`, [sessionId]);
+    return rows.map((r) => r.id);
+  });
+
+  revalidatePath("/dashboard/classes");
+  revalidatePath("/dashboard/calendar");
+  revalidatePath("/dashboard/bookings");
+
+  for (const id of cancelledIds) void sendBookingCancelledEmail(id);
+
+  return {
+    ok: true,
+    message:
+      cancelledIds.length === 0
+        ? "Session had no active bookings"
+        : `Cancelled session and ${cancelledIds.length} booking${cancelledIds.length === 1 ? "" : "s"}`,
+  };
 }
 
 // bookings.class_session_id has no ON DELETE cascade, and deliberately so

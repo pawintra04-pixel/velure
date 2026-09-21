@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireOwner } from "@/lib/auth";
 import { withBusinessContext } from "@/db/client";
 import { CreateSessionForm } from "./CreateSessionForm";
-import { deleteClassSession, updateClassSessionNote } from "./actions";
+import { cancelClassSession, deleteClassSession, updateClassSessionNote } from "./actions";
 import { PageShell, PageHeader } from "@/components/dashboard/PageShell";
 import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 
@@ -110,6 +110,19 @@ export default async function ClassesPage() {
                 <div className="text-sm text-ink-secondary">
                   {s.seats_booked} / {s.capacity} booked
                 </div>
+                {s.seats_booked > 0 && (
+                  <ConfirmSubmitButton
+                    action={cancelClassSession}
+                    hiddenFields={{ sessionId: s.id }}
+                    label="Cancel session"
+                    pendingLabel="Cancelling…"
+                    confirmTitle="Cancel this session?"
+                    confirmDescription={`This cancels all ${s.seats_booked} booked attendee${s.seats_booked === 1 ? "" : "s"} and emails each of them — the session stays on the schedule with its history intact.`}
+                    confirmLabel="Cancel session"
+                    danger
+                    buttonClassName="rounded-full border border-border px-3 py-1.5 text-sm text-ink-secondary hover:bg-page"
+                  />
+                )}
                 <ConfirmSubmitButton
                   action={deleteClassSession}
                   hiddenFields={{ sessionId: s.id }}

@@ -5,6 +5,7 @@ import { ProfileForm } from "./ProfileForm";
 import { HoursForm } from "./HoursForm";
 import { PaymentsSection } from "./PaymentsSection";
 import { WhatsAppSection } from "./WhatsAppSection";
+import { LanguageToggle } from "./LanguageToggle";
 import { SettingsTabs, SETTINGS_SECTIONS, type SettingsSectionKey } from "./SettingsTabs";
 import { PageShell, PageHeader, Surface, ReadableSection } from "@/components/dashboard/PageShell";
 
@@ -47,6 +48,7 @@ export default async function SettingsPage({
         <PageHeader
           title="Settings"
           description="Your business profile, hours, and payments — shown to customers on your public booking page and used to keep bookings inside real operating hours."
+          actions={<LanguageToggle locale={owner.locale} />}
         />
         <div className="mt-5">
           <SettingsTabs active={section} />

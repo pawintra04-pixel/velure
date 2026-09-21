@@ -1,5 +1,6 @@
 import { formatBaht } from "@/lib/money";
 import type { MonthlyRevenuePoint, StatTiles } from "@/lib/dashboard-data";
+import { overview, type Locale } from "@/lib/i18n";
 
 // Reuses the exact same year-to-date-by-month series the old bar chart used
 // (getMonthlyRevenue) as a sparkline instead of inventing daily-granularity
@@ -31,19 +32,22 @@ function monthOverMonthTrend(data: MonthlyRevenuePoint[]): number | null {
 export function PerformancePanel({
   stats,
   monthlyRevenue,
+  locale,
 }: {
   stats: StatTiles;
   monthlyRevenue: MonthlyRevenuePoint[];
+  locale: Locale;
 }) {
   const trend = monthOverMonthTrend(monthlyRevenue);
   const points = sparklinePoints(monthlyRevenue, 340, 34);
+  const t = overview[locale];
 
   return (
     <div>
-      <div className="text-[13.5px] font-semibold uppercase tracking-wide text-ink">Performance</div>
+      <div className="text-[13.5px] font-semibold uppercase tracking-wide text-ink">{t.performance}</div>
 
       <div className="mt-4 border-t border-border pt-5">
-        <div className="text-[13px] text-ink-muted">Revenue this month</div>
+        <div className="text-[13px] text-ink-muted">{t.revenueThisMonth}</div>
         <div className="mt-1.5 flex items-baseline gap-3">
           <span className="font-mono text-[28px] font-semibold tracking-tight text-ink">
             {formatBaht(stats.monthRevenueSatang)}
@@ -71,11 +75,11 @@ export function PerformancePanel({
 
       <div className="mt-5 flex border-t border-border pt-5">
         <div className="flex-1">
-          <div className="text-[12.5px] text-ink-muted">Bookings today</div>
+          <div className="text-[12.5px] text-ink-muted">{t.bookingsToday}</div>
           <div className="mt-1 font-mono text-[19px] font-semibold text-ink">{stats.todayBookings}</div>
         </div>
         <div className="flex-1 border-l border-border pl-4">
-          <div className="text-[12.5px] text-ink-muted">Total customers</div>
+          <div className="text-[12.5px] text-ink-muted">{t.totalCustomers}</div>
           <div className="mt-1 font-mono text-[19px] font-semibold text-ink">{stats.totalCustomers}</div>
         </div>
       </div>

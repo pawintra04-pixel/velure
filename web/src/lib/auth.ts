@@ -53,7 +53,12 @@ export async function clearSession(): Promise<void> {
 
 export type AuthResult = { ok: true } | { ok: false; error: string };
 
-export type CurrentOwner = { ownerId: string; businessId: string; email: string };
+export type CurrentOwner = {
+  ownerId: string;
+  businessId: string;
+  email: string;
+  locale: "en" | "th";
+};
 
 export async function getCurrentOwner(): Promise<CurrentOwner | null> {
   const cookieStore = await cookies();
@@ -61,14 +66,14 @@ export async function getCurrentOwner(): Promise<CurrentOwner | null> {
   if (!sessionId) return null;
 
   const { rows: [row] } = await adminPool.query(
-    `SELECT o.id AS owner_id, o.business_id, o.email
+    `SELECT o.id AS owner_id, o.business_id, o.email, o.locale
      FROM sessions s
      JOIN owners o ON o.id = s.owner_id
      WHERE s.id = $1 AND s.expires_at > now()`,
     [sessionId]
   );
   if (!row) return null;
-  return { ownerId: row.owner_id, businessId: row.business_id, email: row.email };
+  return { ownerId: row.owner_id, businessId: row.business_id, email: row.email, locale: row.locale };
 }
 
 /** Use at the top of any owner-only page. Redirects to /login if not signed in. */

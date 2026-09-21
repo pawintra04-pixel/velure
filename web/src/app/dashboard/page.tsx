@@ -10,24 +10,16 @@ import { TodaySchedule, UpNextLine } from "@/components/dashboard/TodaySchedule"
 import { NeedsAttention } from "@/components/dashboard/NeedsAttention";
 import { PerformancePanel } from "@/components/dashboard/PerformancePanel";
 import { NewBookingForm } from "@/app/dashboard/bookings/NewBookingForm";
-
-function todayLabel(): string {
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: "Asia/Bangkok",
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-  }).format(new Date());
-}
+import { overview, tTodayLabel, tTodayAt, type Locale } from "@/lib/i18n";
 
 // Visually matches "+ New booking" but has no real capability behind it
 // yet (no distinct quick-add flow exists in the app) — rendered inert
 // rather than duplicating New booking's action or fabricating a new one.
 // See the Phase 1 implementation report for the flag on this element.
-function QuickAddButton({ className }: { className: string }) {
+function QuickAddButton({ className, locale }: { className: string; locale: Locale }) {
   return (
     <button type="button" disabled aria-disabled="true" title="Quick add isn't available yet" className={className}>
-      Quick add
+      {overview[locale].quickAdd}
       <svg width="10" height="10" viewBox="0 0 10 10" fill="none" className="ml-1.5 inline-block">
         <path d="M2 3.5 5 6.5 8 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
@@ -57,19 +49,24 @@ export default async function DashboardPage() {
     }),
   ]);
 
+  const locale = owner.locale;
+
   return (
     <div className="font-didact mx-auto max-w-[1320px] px-6 py-8 sm:px-10 sm:py-10 lg:px-12">
       <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
         <div>
-          <div className="text-[13px] text-ink-muted">{todayLabel()}</div>
+          <div className="text-[13px] text-ink-muted">{tTodayLabel(locale, new Date())}</div>
           <h1 className="mt-1.5 text-[26px] font-normal tracking-tight text-ink sm:text-[32px] lg:text-[36px]">
-            Today at {business.name}
+            {tTodayAt(locale, business.name)}
           </h1>
         </div>
 
         {/* Desktop actions */}
         <div className="hidden items-center gap-3 sm:flex">
-          <QuickAddButton className="flex items-center rounded-lg border border-ink/25 px-4 py-2.5 text-[14.5px] text-ink-secondary opacity-60 cursor-not-allowed" />
+          <QuickAddButton
+            locale={locale}
+            className="flex items-center rounded-lg border border-ink/25 px-4 py-2.5 text-[14.5px] text-ink-secondary opacity-60 cursor-not-allowed"
+          />
           <NewBookingForm
             services={services}
             staff={staff}
@@ -84,12 +81,15 @@ export default async function DashboardPage() {
             staff={staff}
             buttonClassName="w-full rounded-lg bg-sunburst px-4 py-3.5 text-center text-[15px] font-medium text-ink"
           />
-          <QuickAddButton className="flex items-center justify-center py-1 text-[13px] text-ink-muted opacity-70 cursor-not-allowed" />
+          <QuickAddButton
+            locale={locale}
+            className="flex items-center justify-center py-1 text-[13px] text-ink-muted opacity-70 cursor-not-allowed"
+          />
         </div>
       </div>
 
       <div className="mt-7">
-        <UpNextLine entries={schedule} />
+        <UpNextLine entries={schedule} locale={locale} />
       </div>
 
       {/*
@@ -102,13 +102,13 @@ export default async function DashboardPage() {
       */}
       <div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1.75fr)_minmax(300px,1fr)] lg:grid-rows-[auto_1fr] lg:gap-x-12 lg:gap-y-10">
         <div className="order-2 lg:order-none lg:col-start-1 lg:row-start-1 lg:row-span-2">
-          <TodaySchedule entries={schedule} />
+          <TodaySchedule entries={schedule} locale={locale} />
         </div>
         <div className="order-1 lg:order-none lg:col-start-2 lg:row-start-1">
-          <NeedsAttention data={attention} />
+          <NeedsAttention data={attention} locale={locale} />
         </div>
         <div className="order-3 lg:order-none lg:col-start-2 lg:row-start-2">
-          <PerformancePanel stats={stats} monthlyRevenue={monthlyRevenue} />
+          <PerformancePanel stats={stats} monthlyRevenue={monthlyRevenue} locale={locale} />
         </div>
       </div>
     </div>

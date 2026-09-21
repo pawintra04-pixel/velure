@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireOwner } from "@/lib/auth";
-import { withBusinessContext } from "@/db/client";
+import { withBusinessContext, adminPool } from "@/db/client";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -108,5 +108,27 @@ export async function updatePaymentMethods(
   );
 
   revalidatePath("/dashboard/settings");
+  return { ok: true };
+}
+
+// owners, not businesses — dashboard language is per-owner (see
+// 028_owner_locale.sql), so this writes there directly via adminPool, the
+// same way every other owners-table touch in this codebase does (that
+// table has never gone through withBusinessContext; it's how you get an
+// owner's identity in the first place, not data scoped by one).
+export async function updateLocale(
+  _prev: ActionResult | null,
+  formData: FormData
+): Promise<ActionResult> {
+  const owner = await requireOwner();
+  const locale = String(formData.get("locale") ?? "");
+
+  if (locale !== "en" && locale !== "th") {
+    return { ok: false, error: "Invalid language." };
+  }
+
+  await adminPool.query(`UPDATE owners SET locale = $1 WHERE id = $2`, [locale, owner.ownerId]);
+
+  revalidatePath("/dashboard", "layout");
   return { ok: true };
 }

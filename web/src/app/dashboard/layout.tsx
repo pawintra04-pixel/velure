@@ -12,6 +12,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         ownerEmail={owner.email}
         classesConfigured={setup.classesConfigured}
         resourcesConfigured={setup.resourcesConfigured}
+        locale={owner.locale}
       />
       <main className="min-w-0 flex-1 overflow-x-hidden">{children}</main>
     </div>

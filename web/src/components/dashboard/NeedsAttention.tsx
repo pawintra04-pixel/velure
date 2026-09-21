@@ -1,13 +1,11 @@
 import Link from "next/link";
 import { formatBaht } from "@/lib/money";
 import type { AttentionItems } from "@/lib/dashboard-data";
+import { overview, tPaymentsAwaiting, tTotal, tCountdown, type Locale } from "@/lib/i18n";
 
-function formatCountdown(iso: string, nowMs: number): string {
+function formatCountdown(locale: Locale, iso: string, nowMs: number): string {
   const diffMin = Math.round((new Date(iso).getTime() - nowMs) / 60_000);
-  if (diffMin < 0) return "Already started";
-  if (diffMin < 60) return `Starts in ${diffMin} minute${diffMin === 1 ? "" : "s"}`;
-  const hours = Math.round(diffMin / 60);
-  return `Starts in ${hours} hour${hours === 1 ? "" : "s"}`;
+  return tCountdown(locale, diffMin);
 }
 
 function formatTime(iso: string): string {
@@ -26,25 +24,26 @@ type Row = { key: string; title: string; subtitle: string; action: { label: stri
 // not "Remind": there is no reminder/notification-send capability in the
 // app yet, so this links to the real booking record instead of pretending
 // to dispatch a reminder.
-export function NeedsAttention({ data }: { data: AttentionItems }) {
+export function NeedsAttention({ data, locale }: { data: AttentionItems; locale: Locale }) {
   const nowMs = new Date().getTime();
+  const t = overview[locale];
   const rows: Row[] = [];
 
   if (data.pendingPayments) {
     rows.push({
       key: "pending",
-      title: `${data.pendingPayments.count} payment${data.pendingPayments.count === 1 ? "" : "s"} awaiting confirmation`,
-      subtitle: `${formatBaht(data.pendingPayments.totalSatang)} total`,
-      action: { label: "Review", href: "/dashboard/bookings?status=TEMPORARY_HOLD,PAYMENT_PENDING" },
+      title: tPaymentsAwaiting(locale, data.pendingPayments.count),
+      subtitle: tTotal(locale, formatBaht(data.pendingPayments.totalSatang)),
+      action: { label: t.review, href: "/dashboard/bookings?status=TEMPORARY_HOLD,PAYMENT_PENDING" },
     });
   }
   if (data.nextUnpaid) {
     rows.push({
       key: "unpaid",
-      title: `${data.nextUnpaid.customerName} · ${formatTime(data.nextUnpaid.startTime)} · unpaid`,
-      subtitle: formatCountdown(data.nextUnpaid.startTime, nowMs),
+      title: `${data.nextUnpaid.customerName} · ${formatTime(data.nextUnpaid.startTime)} · ${t.unpaid}`,
+      subtitle: formatCountdown(locale, data.nextUnpaid.startTime, nowMs),
       action: {
-        label: "View",
+        label: t.view,
         href: `/dashboard/bookings?status=TEMPORARY_HOLD,PAYMENT_PENDING#booking-${data.nextUnpaid.bookingId}`,
       },
     });
@@ -52,16 +51,16 @@ export function NeedsAttention({ data }: { data: AttentionItems }) {
   if (data.stripeSetupIncomplete) {
     rows.push({
       key: "stripe",
-      title: "Stripe setup incomplete",
-      subtitle: "Card payments are off",
-      action: { label: "Finish", href: "/dashboard/settings" },
+      title: t.stripeSetupIncomplete,
+      subtitle: t.cardPaymentsOff,
+      action: { label: t.finish, href: "/dashboard/settings" },
     });
   }
 
   return (
     <div>
       <div className="flex items-center justify-between gap-2">
-        <div className="text-[13.5px] font-semibold uppercase tracking-wide text-ink">Needs attention</div>
+        <div className="text-[13.5px] font-semibold uppercase tracking-wide text-ink">{t.needsAttention}</div>
         {rows.length > 0 && (
           <span className="rounded-full bg-sunburst px-2.5 py-0.5 font-mono text-[12.5px] font-semibold text-ink">
             {rows.length}
@@ -70,7 +69,7 @@ export function NeedsAttention({ data }: { data: AttentionItems }) {
       </div>
 
       {rows.length === 0 ? (
-        <div className="mt-3 text-[14px] text-ink-muted">All caught up — nothing needs attention right now.</div>
+        <div className="mt-3 text-[14px] text-ink-muted">{t.allCaughtUp}</div>
       ) : (
         <div className="mt-3 rounded-xl border border-sunburst/60 bg-soft-yellow-surface px-4">
           {rows.map((row, i) => (

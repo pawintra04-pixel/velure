@@ -43,8 +43,9 @@ export async function createQuickHold(input: {
   serviceId: string;
   startTime: string;
   endTime: string;
+  source?: string | null;
 }): Promise<QuickHoldResult> {
-  const { businessId, serviceId, startTime, endTime } = input;
+  const { businessId, serviceId, startTime, endTime, source } = input;
   const anonId = await getOrCreateAnonId();
 
   try {
@@ -85,8 +86,8 @@ export async function createQuickHold(input: {
 
       const { rows: [booking] } = await c.query(
         `INSERT INTO bookings
-           (business_id, service_id, staff_id, start_time, end_time, status, hold_expires_at, amount, anon_id)
-         VALUES ($1, $2, $3, $4, $5, 'TEMPORARY_HOLD', $6, $7, $8)
+           (business_id, service_id, staff_id, start_time, end_time, status, hold_expires_at, amount, anon_id, source)
+         VALUES ($1, $2, $3, $4, $5, 'TEMPORARY_HOLD', $6, $7, $8, $9)
          RETURNING id`,
         [
           businessId,
@@ -97,6 +98,7 @@ export async function createQuickHold(input: {
           new Date(Date.now() + 10 * 60_000),
           amount,
           anonId,
+          source || null,
         ]
       );
       return booking.id;
@@ -129,8 +131,9 @@ export type ReserveSeatResult =
 export async function reserveClassSeat(input: {
   businessId: string;
   classSessionId: string;
+  source?: string | null;
 }): Promise<ReserveSeatResult> {
-  const { businessId, classSessionId } = input;
+  const { businessId, classSessionId, source } = input;
   const anonId = await getOrCreateAnonId();
 
   try {
@@ -164,8 +167,8 @@ export async function reserveClassSeat(input: {
 
       const { rows: [booking] } = await c.query(
         `INSERT INTO bookings
-           (business_id, service_id, staff_id, start_time, end_time, status, hold_expires_at, amount, class_session_id, anon_id)
-         VALUES ($1, $2, $3, $4, $5, 'TEMPORARY_HOLD', $6, $7, $8, $9)
+           (business_id, service_id, staff_id, start_time, end_time, status, hold_expires_at, amount, class_session_id, anon_id, source)
+         VALUES ($1, $2, $3, $4, $5, 'TEMPORARY_HOLD', $6, $7, $8, $9, $10)
          RETURNING id`,
         [
           businessId,
@@ -177,6 +180,7 @@ export async function reserveClassSeat(input: {
           amount,
           classSessionId,
           anonId,
+          source || null,
         ]
       );
       return booking.id;

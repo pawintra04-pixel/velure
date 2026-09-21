@@ -59,12 +59,14 @@ export function BookingWizard({
   serviceId,
   initialDate,
   initialSlots,
+  source,
 }: {
   slug: string;
   businessId: string;
   serviceId: string;
   initialDate: string;
   initialSlots: Slot[];
+  source: string | null;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -100,6 +102,7 @@ export function BookingWizard({
         serviceId,
         startTime: slot.startTime,
         endTime: slot.endTime,
+        source,
       });
 
       if (!result.ok) {

@@ -24,10 +24,12 @@ export function ClassSessionPicker({
   slug,
   businessId,
   sessions,
+  source,
 }: {
   slug: string;
   businessId: string;
   sessions: Session[];
+  source: string | null;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -38,7 +40,7 @@ export function ClassSessionPicker({
     setError(null);
     setReservingId(session.id);
     startTransition(async () => {
-      const result = await reserveClassSeat({ businessId, classSessionId: session.id });
+      const result = await reserveClassSeat({ businessId, classSessionId: session.id, source });
       if (!result.ok) {
         setReservingId(null);
         setError(

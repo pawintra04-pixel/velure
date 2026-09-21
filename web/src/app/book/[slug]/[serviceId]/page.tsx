@@ -12,10 +12,13 @@ function todayISOInBangkok(): string {
 
 export default async function ServiceBookingPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string; serviceId: string }>;
+  searchParams: Promise<{ src?: string }>;
 }) {
   const { slug, serviceId } = await params;
+  const { src } = await searchParams;
   const business = await getBusinessBySlug(slug);
   if (!business) notFound();
   const businessId = business.id;
@@ -72,7 +75,12 @@ export default async function ServiceBookingPage({
           </div>
 
           {isClass ? (
-            <ClassSessionPicker slug={slug} businessId={businessId} sessions={classSessions} />
+            <ClassSessionPicker
+              slug={slug}
+              businessId={businessId}
+              sessions={classSessions}
+              source={src ?? null}
+            />
           ) : (
             <BookingWizard
               slug={slug}
@@ -80,6 +88,7 @@ export default async function ServiceBookingPage({
               serviceId={serviceId}
               initialDate={today}
               initialSlots={initialSlots}
+              source={src ?? null}
             />
           )}
         </div>

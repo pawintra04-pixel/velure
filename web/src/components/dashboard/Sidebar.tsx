@@ -59,6 +59,11 @@ const NAV_ITEMS = [
     setupKey: "resourcesConfigured" as const,
   },
   {
+    label: "Share",
+    href: "/dashboard/share",
+    icon: "M14 6.5a2 2 0 1 0-1.9-2.7L7.8 6.4a2 2 0 1 0 0 3.2l4.3 2.6a2 2 0 1 0 .7-1.3L8.5 8.3a2 2 0 0 0 0-.6l4.3-2.6c.35.28.77.4 1.2.4Z",
+  },
+  {
     label: "Reports",
     href: "/dashboard/reports",
     icon: "M4 16V9m4.5 7V4m4.5 12v-5m4.5 5V7",

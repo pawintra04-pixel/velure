@@ -7,10 +7,13 @@ import { BookingHeader } from "@/components/booking/BookingHeader";
 
 export default async function BookServicesPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ src?: string }>;
 }) {
   const { slug } = await params;
+  const { src } = await searchParams;
   const business = await getBusinessBySlug(slug);
   if (!business) notFound();
 
@@ -45,7 +48,7 @@ export default async function BookServicesPage({
           {services.map((s) => (
             <Link
               key={s.id}
-              href={`/book/${slug}/${s.id}`}
+              href={src ? `/book/${slug}/${s.id}?src=${encodeURIComponent(src)}` : `/book/${slug}/${s.id}`}
               className="flex flex-col overflow-hidden rounded-2xl border border-border bg-surface hover:border-accent"
             >
               {s.image_url ? (

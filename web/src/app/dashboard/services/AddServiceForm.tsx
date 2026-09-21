@@ -4,17 +4,46 @@ import { useActionState, useState } from "react";
 import { addService, type ActionResult } from "./actions";
 
 export function AddServiceForm() {
+  const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState<ActionResult | null, FormData>(
     addService,
     null
   );
   const [paymentMode, setPaymentMode] = useState("full");
 
+  // Close the form once a submission succeeds — adjusted during render
+  // (comparing against the previous state), not in an effect, matching the
+  // pattern Sidebar.tsx already uses for this same "react to a prop/state
+  // change" case.
+  const [prevState, setPrevState] = useState(state);
+  if (state !== prevState) {
+    setPrevState(state);
+    if (state?.ok) setOpen(false);
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="rounded-lg bg-sunburst px-4 py-2 text-sm font-medium text-ink transition-[filter] hover:brightness-95"
+      >
+        + Add service
+      </button>
+    );
+  }
+
   return (
     <form
       action={formAction}
-      className="mt-3 flex flex-col gap-3 rounded-2xl border border-border bg-surface p-5"
+      className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-5"
     >
+      <div className="flex items-center justify-between">
+        <div className="text-sm font-medium text-ink-secondary">Add a service</div>
+        <button type="button" onClick={() => setOpen(false)} className="text-xs text-ink-muted hover:text-ink-secondary">
+          Close
+        </button>
+      </div>
       <input
         name="name"
         placeholder="Service name"
@@ -82,7 +111,7 @@ export function AddServiceForm() {
       <button
         type="submit"
         disabled={pending}
-        className="rounded-xl bg-accent py-2.5 text-sm font-medium text-accent-ink disabled:opacity-50"
+        className="rounded-xl bg-sunburst py-2.5 text-sm font-medium text-ink disabled:opacity-50"
       >
         {pending ? "Adding..." : "Add service"}
       </button>

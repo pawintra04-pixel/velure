@@ -13,7 +13,7 @@ export default async function ConfirmedPage({
   const { bookingId } = await params;
 
   const { rows: [booking] } = await adminPool.query(
-    `SELECT b.status, b.start_time, b.amount, s.name AS service_name, st.name AS staff_name,
+    `SELECT b.status, b.start_time, b.amount, b.payment_method, s.name AS service_name, st.name AS staff_name,
             biz.id AS business_id, biz.name AS business_name, biz.slug AS business_slug, biz.logo_url AS business_logo_url
      FROM bookings b
      JOIN services s ON s.id = b.service_id
@@ -53,10 +53,16 @@ export default async function ConfirmedPage({
             <span>{time}</span>
           </div>
           <div className="flex justify-between py-1">
-            <span className="text-ink-muted">Amount paid</span>
+            <span className="text-ink-muted">{booking.payment_method === "cash" ? "Amount due (cash)" : "Amount paid"}</span>
             <span>{formatBaht(booking.amount)}</span>
           </div>
         </div>
+
+        {booking.payment_method === "cash" && booking.amount > 0 && (
+          <div className="mt-4 w-full rounded-xl border border-[#fdf3e6] bg-[#fdf3e6] px-4 py-3 text-left text-sm text-[#a8681c]">
+            Pay {formatBaht(booking.amount)} in cash when you arrive.
+          </div>
+        )}
 
         {booking.status === "CONFIRMED" && (
           <Link href={`/book/manage/${bookingId}`} className="mt-4 text-sm text-accent underline">

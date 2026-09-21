@@ -136,7 +136,7 @@ export function BookingWizard({
               </span>
               <span
                 className={`flex h-8 w-8 items-center justify-center rounded-full text-sm ${
-                  selected ? "bg-accent font-medium text-accent-ink" : "text-ink"
+                  selected ? "bg-sunburst font-medium text-ink" : "text-ink"
                 }`}
               >
                 {d.day}
@@ -165,8 +165,8 @@ export function BookingWizard({
                       disabled={isPending}
                       className={`flex items-center justify-between rounded-xl border px-4 py-3 text-sm transition-colors disabled:opacity-50 ${
                         reservingSlot === s.startTime
-                          ? "border-accent bg-accent/10 font-medium"
-                          : "border-border text-ink-secondary hover:border-accent hover:text-ink"
+                          ? "border-sunburst bg-sunburst/10 font-medium"
+                          : "border-border text-ink-secondary hover:border-sunburst hover:text-ink"
                       }`}
                     >
                       <span>{formatSlotTime(s.startTime)}</span>

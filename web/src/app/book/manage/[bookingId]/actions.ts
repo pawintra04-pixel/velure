@@ -3,6 +3,8 @@
 import { adminPool, withBusinessContext } from "@/db/client";
 import { getAvailableSlots, type Slot } from "@/lib/availability";
 import { releaseClassSeat } from "@/lib/classes";
+import { sendBookingRescheduledEmail, sendBookingCancelledEmail } from "@/lib/email";
+import { isSlotConflictError } from "@/lib/staff-availability";
 
 type PolicyCheck = {
   businessId: string;
@@ -70,14 +72,25 @@ export async function cancelBooking(bookingId: string): Promise<ManageActionResu
     };
   }
 
-  await withBusinessContext(check.businessId, async (c) => {
-    await c.query(`UPDATE bookings SET status = 'CANCELLED' WHERE id = $1 AND status = 'CONFIRMED'`, [
-      bookingId,
-    ]);
+  const cancelled = await withBusinessContext(check.businessId, async (c) => {
+    const result = await c.query(
+      `UPDATE bookings SET status = 'CANCELLED' WHERE id = $1 AND status = 'CONFIRMED'`,
+      [bookingId]
+    );
     // Free the seat back up — class_sessions.seats_booked only ever moves
     // through explicit release calls like this one, never a live count.
-    if (check.classSessionId) await releaseClassSeat(c, check.classSessionId);
+    if (result.rowCount && check.classSessionId) await releaseClassSeat(c, check.classSessionId);
+    return result.rowCount ?? 0;
   });
+  // Someone else (the owner, or a concurrent request) could have changed
+  // this booking's status between loadPolicyCheck and this UPDATE — never
+  // report success unless the write actually affected a row.
+  if (cancelled === 0) {
+    return { ok: false, error: "This booking was already changed — please refresh and try again." };
+  }
+  // Fire-and-forget, after the cancellation has already committed — an
+  // email failure must never undo or block a real cancellation.
+  void sendBookingCancelledEmail(bookingId);
   return { ok: true };
 }
 
@@ -105,17 +118,25 @@ export async function rescheduleBooking(
   }
 
   try {
-    await withBusinessContext(check.businessId, (c) =>
+    const result = await withBusinessContext(check.businessId, (c) =>
       c.query(
         `UPDATE bookings SET start_time = $1, end_time = $2 WHERE id = $3 AND status = 'CONFIRMED'`,
         [newStartTime, newEndTime, bookingId]
       )
     );
+    // Same "don't fake success" guard as cancelBooking — a concurrent
+    // change (owner cancels, payment fails, etc.) between the read above
+    // and this UPDATE means 0 rows affected even though no error was
+    // thrown.
+    if (!result.rowCount) {
+      return { ok: false, error: "This booking was already changed — please refresh and try again." };
+    }
+    void sendBookingRescheduledEmail(bookingId);
     return { ok: true };
   } catch (err) {
     // The overlap EXCLUDE constraint applies to UPDATEs too, not just
     // INSERTs — a slot picked a moment ago can still lose a race here.
-    if ((err as { code?: string }).code === "23P01") {
+    if (isSlotConflictError(err)) {
       return { ok: false, error: "That time was just taken — please pick another." };
     }
     console.error("rescheduleBooking failed", err);

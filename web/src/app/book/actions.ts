@@ -7,7 +7,7 @@ import { sendBookingConfirmationEmail } from "@/lib/email";
 import { sendLineBookingConfirmation } from "@/lib/line";
 import { claimClassSeat, releaseClassSeat } from "@/lib/classes";
 import { getOrCreateAnonId } from "@/lib/anon-session";
-import { isStaffFreeForRange } from "@/lib/staff-availability";
+import { isStaffFreeForRange, isSlotConflictError } from "@/lib/staff-availability";
 
 // Quick booking lets a visitor reserve a slot before typing anything —
 // which also means nothing stops one visitor from holding every remaining
@@ -105,7 +105,7 @@ export async function createQuickHold(input: {
 
     return { ok: true, bookingId };
   } catch (err) {
-    if ((err as { code?: string }).code === "23P01" || (err as Error).message === "slot_taken") {
+    if (isSlotConflictError(err) || (err as Error).message === "slot_taken") {
       return { ok: false, reason: "slot_taken" };
     }
     if ((err as Error).message === "too_many_holds") {
@@ -262,8 +262,8 @@ async function initiatePayment(params: {
 
     await withBusinessContext(businessId, (c) =>
       c.query(
-        `UPDATE bookings SET stripe_payment_intent_id = $1, status = 'PAYMENT_PENDING' WHERE id = $2`,
-        [paymentIntentId, bookingId]
+        `UPDATE bookings SET stripe_payment_intent_id = $1, status = 'PAYMENT_PENDING', payment_method = $2 WHERE id = $3`,
+        [paymentIntentId, paymentMethod, bookingId]
       )
     );
     return { ok: true };
@@ -290,7 +290,7 @@ export async function completeBookingDetails(input: {
   customerName: string;
   customerPhone: string;
   customerEmail: string;
-  paymentMethod: "promptpay" | "card";
+  paymentMethod: "promptpay" | "card" | "cash";
   customFieldValues?: { fieldId: string; value: string }[];
 }): Promise<CompleteDetailsResult> {
   const {
@@ -351,12 +351,15 @@ export async function completeBookingDetails(input: {
         [businessId, customerName.trim(), customerPhone.trim(), customerEmail.trim()]
       );
 
-      const finalStatus = booking.amount > 0 ? "TEMPORARY_HOLD" : "CONFIRMED";
-      await c.query(`UPDATE bookings SET customer_id = $1, status = $2 WHERE id = $3`, [
-        customer.id,
-        finalStatus,
-        bookingId,
-      ]);
+      // Cash has no online payment step to wait for — a customer choosing it
+      // is confirmed on the spot, same as a free booking, just with money
+      // still owed in person (tracked via payment_method below, not status).
+      const finalStatus = booking.amount === 0 || paymentMethod === "cash" ? "CONFIRMED" : "TEMPORARY_HOLD";
+      const finalPaymentMethod = booking.amount > 0 ? paymentMethod : null;
+      await c.query(
+        `UPDATE bookings SET customer_id = $1, status = $2, payment_method = $3 WHERE id = $4`,
+        [customer.id, finalStatus, finalPaymentMethod, bookingId]
+      );
 
       for (const field of fields) {
         const value = valueByFieldId.get(field.id);
@@ -390,7 +393,7 @@ export async function completeBookingDetails(input: {
     return { ok: false, reason: "server_error" };
   }
 
-  if (setup.amount === 0) {
+  if (setup.amount === 0 || paymentMethod === "cash") {
     await sendBookingConfirmationEmail(bookingId);
     await sendLineBookingConfirmation(bookingId);
     return { ok: true, bookingId, needsPayment: false };

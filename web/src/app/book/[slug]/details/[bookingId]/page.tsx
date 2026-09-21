@@ -38,6 +38,20 @@ export default async function BookingDetailsPage({
 
   if (!booking) notFound();
 
+  const paymentSettings = await withBusinessContext(business.id, async (c) => {
+    const { rows: [row] } = await c.query(
+      `SELECT stripe_account_id, accepts_card, accepts_promptpay, accepts_cash
+       FROM businesses WHERE id = $1`,
+      [business.id]
+    );
+    return row;
+  });
+  const availableMethods: ("card" | "promptpay" | "cash")[] = [
+    ...(paymentSettings.stripe_account_id && paymentSettings.accepts_promptpay ? (["promptpay"] as const) : []),
+    ...(paymentSettings.stripe_account_id && paymentSettings.accepts_card ? (["card"] as const) : []),
+    ...(paymentSettings.accepts_cash ? (["cash"] as const) : []),
+  ];
+
   const customFields = await withBusinessContext(business.id, async (c) => {
     const { rows } = await c.query(
       `SELECT id, label, importance FROM service_custom_fields
@@ -62,7 +76,7 @@ export default async function BookingDetailsPage({
           </p>
           <Link
             href={`/book/${slug}/${booking.service_id}`}
-            className="mt-6 rounded-xl bg-accent px-4 py-2.5 text-sm font-medium text-accent-ink"
+            className="mt-6 rounded-xl bg-sunburst px-4 py-2.5 text-sm font-medium text-ink"
           >
             Choose a new time
           </Link>
@@ -106,6 +120,7 @@ export default async function BookingDetailsPage({
             businessId={business.id}
             bookingId={bookingId}
             requiresPayment={booking.amount > 0}
+            availableMethods={availableMethods}
             customFields={customFields}
           />
         </div>

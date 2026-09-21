@@ -53,6 +53,9 @@ function groupByPeriod(slots: Slot[]): { label: string; slots: Slot[] }[] {
 
 export function ManageBookingClient({
   bookingId,
+  serviceName,
+  startTimeLabel,
+  amountLabel,
   canReschedule,
   canCancel,
   rescheduleCutoffHours,
@@ -61,6 +64,9 @@ export function ManageBookingClient({
 }: {
   bookingId: string;
   serviceId: string;
+  serviceName: string;
+  startTimeLabel: string;
+  amountLabel: string | null;
   canReschedule: boolean;
   canCancel: boolean;
   rescheduleCutoffHours: number;
@@ -77,6 +83,9 @@ export function ManageBookingClient({
   const [slots, setSlots] = useState<Slot[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [cancelled, setCancelled] = useState(false);
+  const [movedTo, setMovedTo] = useState<string | null>(null);
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
+  const [pendingSlot, setPendingSlot] = useState<Slot | null>(null);
 
   const periods = useMemo(() => groupByPeriod(slots), [slots]);
 
@@ -97,21 +106,26 @@ export function ManageBookingClient({
     });
   }
 
-  function pickSlot(slot: Slot) {
+  function confirmReschedule() {
+    if (!pendingSlot) return;
+    const slot = pendingSlot;
     setError(null);
     startTransition(async () => {
       const result = await rescheduleBooking(bookingId, slot.startTime, slot.endTime);
+      setPendingSlot(null);
       if (!result.ok) {
         setError(result.error);
         return;
       }
+      setMovedTo(formatSlotTime(slot.startTime));
       router.refresh();
       setShowReschedule(false);
     });
   }
 
-  function handleCancel() {
+  function confirmCancel() {
     setError(null);
+    setConfirmingCancel(false);
     startTransition(async () => {
       const result = await cancelBooking(bookingId);
       if (!result.ok) {
@@ -124,12 +138,13 @@ export function ManageBookingClient({
   }
 
   if (cancelled) {
-    return <p className="mt-4 text-sm text-ink-secondary">Your booking has been cancelled.</p>;
+    return <p className="mt-4 text-sm text-ink-secondary">✓ Your booking has been cancelled.</p>;
   }
 
   return (
     <div className="mt-4 flex flex-col gap-4">
       {error && <div className="text-sm text-[#d03b3b]">{error}</div>}
+      {movedTo && <div className="text-sm text-[#1b8a5a]">✓ Booking moved to {movedTo}</div>}
 
       {!showReschedule && (
         <div className="flex gap-2">
@@ -166,7 +181,7 @@ export function ManageBookingClient({
                   </span>
                   <span
                     className={`flex h-8 w-8 items-center justify-center rounded-full text-sm ${
-                      selected ? "bg-accent font-medium text-accent-ink" : "text-ink"
+                      selected ? "bg-sunburst font-medium text-ink" : "text-ink"
                     }`}
                   >
                     {d.day}
@@ -190,8 +205,8 @@ export function ManageBookingClient({
                         <button
                           key={s.startTime}
                           disabled={isPending}
-                          onClick={() => pickSlot(s)}
-                          className="flex items-center justify-between rounded-xl border border-border px-4 py-3 text-sm text-ink-secondary transition-colors hover:border-accent hover:text-ink disabled:opacity-50"
+                          onClick={() => setPendingSlot(s)}
+                          className="flex items-center justify-between rounded-xl border border-border px-4 py-3 text-sm text-ink-secondary transition-colors hover:border-ink/40 hover:text-ink disabled:opacity-50"
                         >
                           <span>{formatSlotTime(s.startTime)}</span>
                         </button>
@@ -207,7 +222,7 @@ export function ManageBookingClient({
 
       {canCancel ? (
         <button
-          onClick={handleCancel}
+          onClick={() => setConfirmingCancel(true)}
           disabled={isPending}
           className="rounded-xl border border-border py-2.5 text-sm text-[#d03b3b] disabled:opacity-50"
         >
@@ -218,6 +233,113 @@ export function ManageBookingClient({
           Cancellations must be made at least {cancelCutoffHours}h in advance.
         </div>
       )}
+
+      {pendingSlot && (
+        <ConfirmOverlay
+          title="Move this booking?"
+          onCancel={() => setPendingSlot(null)}
+          onConfirm={confirmReschedule}
+          confirmLabel={isPending ? "Moving…" : "Move booking"}
+          confirmDisabled={isPending}
+        >
+          <SummaryBlock serviceName={serviceName} timeLabel={formatSlotTime(pendingSlot.startTime)} amountLabel={amountLabel} />
+          <p className="mt-3">This replaces your current time. The old time will be freed up.</p>
+        </ConfirmOverlay>
+      )}
+
+      {confirmingCancel && (
+        <ConfirmOverlay
+          title="Cancel this booking?"
+          onCancel={() => setConfirmingCancel(false)}
+          onConfirm={confirmCancel}
+          confirmLabel={isPending ? "Cancelling…" : "Cancel booking"}
+          confirmDisabled={isPending}
+          danger
+        >
+          <SummaryBlock serviceName={serviceName} timeLabel={startTimeLabel} amountLabel={amountLabel} />
+          <p className="mt-3">
+            Cancelling will free this time slot.
+            {amountLabel && (
+              <>
+                {" "}
+                Payment will <strong>not</strong> automatically be refunded — contact the business
+                if a refund is expected.
+              </>
+            )}
+          </p>
+        </ConfirmOverlay>
+      )}
+    </div>
+  );
+}
+
+function SummaryBlock({
+  serviceName,
+  timeLabel,
+  amountLabel,
+}: {
+  serviceName: string;
+  timeLabel: string;
+  amountLabel: string | null;
+}) {
+  return (
+    <div className="rounded-lg bg-page px-3 py-2 text-sm text-ink">
+      <div>{serviceName}</div>
+      <div className="text-ink-secondary">{timeLabel}</div>
+      <div className="text-ink-secondary">{amountLabel ? `${amountLabel} paid` : "Free booking"}</div>
+    </div>
+  );
+}
+
+// Real-consequence confirmation for the two customer-facing mutations here
+// (reschedule, cancel) — same "intent -> confirmation -> outcome" shape as
+// the owner dashboard's ConfirmSubmitButton, just built for a useTransition
+// client flow instead of a server-action form.
+function ConfirmOverlay({
+  title,
+  children,
+  onCancel,
+  onConfirm,
+  confirmLabel,
+  confirmDisabled,
+  danger,
+}: {
+  title: string;
+  children: React.ReactNode;
+  onCancel: () => void;
+  onConfirm: () => void;
+  confirmLabel: string;
+  confirmDisabled?: boolean;
+  danger?: boolean;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center"
+      onClick={onCancel}
+    >
+      <div className="w-full max-w-sm rounded-2xl bg-surface p-5 text-sm" onClick={(e) => e.stopPropagation()}>
+        <div className="text-[15px] text-ink">{title}</div>
+        <div className="mt-3 text-ink-secondary">{children}</div>
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-full border border-border px-4 py-2 text-sm hover:bg-page"
+          >
+            Keep as is
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={confirmDisabled}
+            className={`rounded-full px-4 py-2 text-sm font-medium disabled:opacity-50 ${
+              danger ? "bg-[#d03b3b] text-white" : "bg-sunburst text-ink"
+            }`}
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

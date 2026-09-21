@@ -82,3 +82,122 @@ export async function sendBookingConfirmationEmail(bookingId: string): Promise<v
     console.error(`[email] failed to send confirmation for booking ${bookingId}`, err);
   }
 }
+
+/**
+ * Same fire-and-forget shape as sendBookingConfirmationEmail — called after
+ * a reschedule has already committed (public self-service flow), so the
+ * new start_time on the row is the one this reads and reports. A failure
+ * here only means the customer doesn't get an email; the booking itself is
+ * already moved.
+ */
+export async function sendBookingRescheduledEmail(bookingId: string): Promise<void> {
+  if (!resend) {
+    console.log(`[email] RESEND_API_KEY not set — skipping reschedule email for ${bookingId}`);
+    return;
+  }
+
+  try {
+    const { rows: [row] } = await adminPool.query(
+      `SELECT
+         cu.name AS customer_name, cu.email AS customer_email,
+         s.name AS service_name, st.name AS staff_name,
+         b.start_time, biz.name AS business_name
+       FROM bookings b
+       JOIN services s ON s.id = b.service_id
+       JOIN staff st ON st.id = b.staff_id
+       JOIN businesses biz ON biz.id = b.business_id
+       LEFT JOIN customers cu ON cu.id = b.customer_id
+       WHERE b.id = $1`,
+      [bookingId]
+    );
+
+    if (!row || !row.customer_email) {
+      console.log(`[email] no customer email on file for booking ${bookingId} — skipping reschedule email`);
+      return;
+    }
+
+    const time = formatBookingTime(row.start_time);
+    const manageUrl = `${APP_BASE_URL}/book/manage/${bookingId}`;
+
+    await resend.emails.send({
+      from: FROM_EMAIL,
+      to: row.customer_email,
+      subject: `Booking moved — ${row.service_name} at ${row.business_name}`,
+      html: `
+        <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+          <h2>Your booking was moved</h2>
+          <p>Hi ${row.customer_name ?? "there"}, your booking at ${row.business_name} is now at a new time.</p>
+          <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+            <tr><td style="padding: 6px 0; color: #666;">Service</td><td style="padding: 6px 0;">${row.service_name}</td></tr>
+            <tr><td style="padding: 6px 0; color: #666;">Staff</td><td style="padding: 6px 0;">${row.staff_name}</td></tr>
+            <tr><td style="padding: 6px 0; color: #666;">New time</td><td style="padding: 6px 0;"><strong>${time}</strong></td></tr>
+          </table>
+          <p><a href="${manageUrl}">Need to change it again?</a></p>
+          <p style="color: #888; font-size: 13px;">This is an automated notice from Velure.</p>
+        </div>
+      `,
+    });
+    console.log(`[email] sent reschedule notice for booking ${bookingId} to ${row.customer_email}`);
+  } catch (err) {
+    console.error(`[email] failed to send reschedule notice for booking ${bookingId}`, err);
+  }
+}
+
+/**
+ * Same shape again, for a booking that just moved to CANCELLED — called
+ * from both the customer's own self-service cancel and the owner
+ * cancelling it from the dashboard, since either one is a real
+ * cancellation the customer should hear about.
+ */
+export async function sendBookingCancelledEmail(bookingId: string): Promise<void> {
+  if (!resend) {
+    console.log(`[email] RESEND_API_KEY not set — skipping cancellation email for ${bookingId}`);
+    return;
+  }
+
+  try {
+    const { rows: [row] } = await adminPool.query(
+      `SELECT
+         cu.name AS customer_name, cu.email AS customer_email,
+         s.name AS service_name, b.start_time, b.amount, biz.name AS business_name
+       FROM bookings b
+       JOIN services s ON s.id = b.service_id
+       JOIN businesses biz ON biz.id = b.business_id
+       LEFT JOIN customers cu ON cu.id = b.customer_id
+       WHERE b.id = $1`,
+      [bookingId]
+    );
+
+    if (!row || !row.customer_email) {
+      console.log(`[email] no customer email on file for booking ${bookingId} — skipping cancellation email`);
+      return;
+    }
+
+    const time = formatBookingTime(row.start_time);
+    const refundLine =
+      row.amount > 0
+        ? `<p style="color: #888; font-size: 13px;">If you paid for this booking, contact ${row.business_name} about a refund — cancelling doesn't refund automatically.</p>`
+        : "";
+
+    await resend.emails.send({
+      from: FROM_EMAIL,
+      to: row.customer_email,
+      subject: `Booking cancelled — ${row.service_name} at ${row.business_name}`,
+      html: `
+        <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+          <h2>Booking cancelled</h2>
+          <p>Hi ${row.customer_name ?? "there"}, your booking at ${row.business_name} has been cancelled.</p>
+          <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+            <tr><td style="padding: 6px 0; color: #666;">Service</td><td style="padding: 6px 0;">${row.service_name}</td></tr>
+            <tr><td style="padding: 6px 0; color: #666;">Was scheduled for</td><td style="padding: 6px 0;">${time}</td></tr>
+          </table>
+          ${refundLine}
+          <p style="color: #888; font-size: 13px;">This is an automated notice from Velure.</p>
+        </div>
+      `,
+    });
+    console.log(`[email] sent cancellation notice for booking ${bookingId} to ${row.customer_email}`);
+  } catch (err) {
+    console.error(`[email] failed to send cancellation notice for booking ${bookingId}`, err);
+  }
+}

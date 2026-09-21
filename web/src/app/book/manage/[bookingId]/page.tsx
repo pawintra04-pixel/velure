@@ -94,6 +94,9 @@ export default async function ManageBookingPage({
           <ManageBookingClient
             bookingId={bookingId}
             serviceId={booking.service_id}
+            serviceName={booking.service_name}
+            startTimeLabel={formatTime(booking.start_time)}
+            amountLabel={booking.amount > 0 ? formatBaht(booking.amount) : null}
             canReschedule={canReschedule}
             canCancel={canCancel}
             rescheduleCutoffHours={booking.reschedule_cutoff_hours}

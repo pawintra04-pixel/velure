@@ -20,7 +20,7 @@ export function LoginForm({ slug }: { slug: string }) {
       <button
         type="submit"
         disabled={pending}
-        className="rounded-xl bg-accent py-3 text-sm font-medium text-accent-ink disabled:opacity-50"
+        className="rounded-xl bg-sunburst py-3 text-sm font-medium text-ink disabled:opacity-50"
       >
         {pending ? "Logging in..." : "Log in"}
       </button>

@@ -43,9 +43,14 @@ export async function POST(req: Request) {
 
   if (event.type === "payment_intent.succeeded") {
     const paymentIntent = event.data.object as { id: string };
+    // Only a genuine pending -> confirmed transition, never a blanket
+    // "!= CONFIRMED" — an out-of-order/retried "succeeded" event arriving
+    // after the owner already refunded or cancelled this booking must not
+    // resurrect it back to CONFIRMED. TEMPORARY_HOLD/PAYMENT_PENDING are
+    // the only states a real payment success can legitimately follow.
     const { rows: [confirmed] } = await adminPool.query(
       `UPDATE bookings SET status = 'CONFIRMED'
-       WHERE stripe_payment_intent_id = $1 AND status != 'CONFIRMED'
+       WHERE stripe_payment_intent_id = $1 AND status IN ('TEMPORARY_HOLD', 'PAYMENT_PENDING')
        RETURNING id`,
       [paymentIntent.id]
     );
@@ -60,9 +65,13 @@ export async function POST(req: Request) {
     }
   } else if (event.type === "payment_intent.payment_failed") {
     const paymentIntent = event.data.object as { id: string };
+    // Same reasoning as above, mirrored: a failed event must only move a
+    // still-pending booking to PAYMENT_FAILED, never regress a booking
+    // that has already resolved (confirmed, completed, cancelled, or
+    // refunded) via a later event.
     await adminPool.query(
       `UPDATE bookings SET status = 'PAYMENT_FAILED'
-       WHERE stripe_payment_intent_id = $1 AND status NOT IN ('CONFIRMED', 'COMPLETED')`,
+       WHERE stripe_payment_intent_id = $1 AND status IN ('TEMPORARY_HOLD', 'PAYMENT_PENDING')`,
       [paymentIntent.id]
     );
   }

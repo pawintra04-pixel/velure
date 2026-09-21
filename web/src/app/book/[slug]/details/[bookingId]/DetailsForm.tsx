@@ -6,15 +6,25 @@ import { completeBookingDetails } from "../../../actions";
 
 type CustomField = { id: string; label: string; importance: "optional" | "important" | "required" };
 
+type PaymentMethod = "promptpay" | "card" | "cash";
+
+const METHOD_LABEL: Record<PaymentMethod, string> = {
+  promptpay: "PromptPay",
+  card: "Card",
+  cash: "Cash (pay in person)",
+};
+
 export function DetailsForm({
   businessId,
   bookingId,
   requiresPayment,
+  availableMethods,
   customFields,
 }: {
   businessId: string;
   bookingId: string;
   requiresPayment: boolean;
+  availableMethods: PaymentMethod[];
   customFields: CustomField[];
 }) {
   const router = useRouter();
@@ -22,7 +32,7 @@ export function DetailsForm({
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<"promptpay" | "card">("promptpay");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(availableMethods[0] ?? "promptpay");
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
 
@@ -111,33 +121,32 @@ export function DetailsForm({
         </div>
       )}
 
-      {requiresPayment && (
+      {requiresPayment && availableMethods.length > 0 && (
         <div className="flex flex-col gap-3 border-t border-border pt-8">
           <div className="text-sm font-medium text-ink">Pay with</div>
           <div className="flex gap-3">
-            <button
-              type="button"
-              onClick={() => setPaymentMethod("promptpay")}
-              className={`flex-1 rounded-xl border px-3 py-3 text-sm ${
-                paymentMethod === "promptpay"
-                  ? "border-accent bg-accent/10 font-medium"
-                  : "border-border text-ink-secondary"
-              }`}
-            >
-              PromptPay
-            </button>
-            <button
-              type="button"
-              onClick={() => setPaymentMethod("card")}
-              className={`flex-1 rounded-xl border px-3 py-3 text-sm ${
-                paymentMethod === "card"
-                  ? "border-accent bg-accent/10 font-medium"
-                  : "border-border text-ink-secondary"
-              }`}
-            >
-              Card
-            </button>
+            {availableMethods.map((method) => (
+              <button
+                key={method}
+                type="button"
+                onClick={() => setPaymentMethod(method)}
+                className={`flex-1 rounded-xl border px-3 py-3 text-sm ${
+                  paymentMethod === method
+                    ? "border-sunburst bg-sunburst/10 font-medium"
+                    : "border-border text-ink-secondary"
+                }`}
+              >
+                {METHOD_LABEL[method]}
+              </button>
+            ))}
           </div>
+        </div>
+      )}
+
+      {requiresPayment && availableMethods.length === 0 && (
+        <div className="rounded-xl border border-[#d03b3b]/30 bg-[#fdecec] px-4 py-3 text-sm text-[#d03b3b]">
+          This business hasn&apos;t set up a way to accept payment yet — please contact them
+          directly to book this.
         </div>
       )}
 
@@ -145,10 +154,21 @@ export function DetailsForm({
         {error && <div className="text-sm text-[#d03b3b]">{error}</div>}
         <button
           onClick={submit}
-          disabled={isPending || !name.trim() || !phone.trim() || !email.trim() || missingRequiredField}
-          className="rounded-xl bg-accent py-3.5 text-sm font-medium text-accent-ink disabled:opacity-50"
+          disabled={
+            isPending ||
+            !name.trim() ||
+            !phone.trim() ||
+            !email.trim() ||
+            missingRequiredField ||
+            (requiresPayment && availableMethods.length === 0)
+          }
+          className="rounded-xl bg-sunburst py-3.5 text-sm font-medium text-ink disabled:opacity-50"
         >
-          {isPending ? "Processing..." : requiresPayment ? "Continue to payment" : "Confirm booking"}
+          {isPending
+            ? "Processing..."
+            : requiresPayment && paymentMethod !== "cash"
+              ? "Continue to payment"
+              : "Confirm booking"}
         </button>
       </div>
     </div>

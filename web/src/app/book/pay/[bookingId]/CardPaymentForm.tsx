@@ -72,7 +72,7 @@ function CardForm({ bookingId }: { bookingId: string }) {
       <button
         type="submit"
         disabled={!stripe || submitting}
-        className="rounded-xl bg-accent py-2.5 text-sm font-medium text-accent-ink disabled:opacity-50"
+        className="rounded-xl bg-sunburst py-2.5 text-sm font-medium text-ink disabled:opacity-50"
       >
         {submitting ? "Processing..." : "Pay now"}
       </button>

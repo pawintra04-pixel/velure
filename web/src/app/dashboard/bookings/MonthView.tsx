@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { CalendarBooking } from "@/lib/bookings-data";
 import { addDays, addMonths, startOfWeek } from "@/lib/bookings-data";
 import { formatTimeOnly } from "./BookingRow";
+import { statusMeta } from "@/lib/booking-status";
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MAX_VISIBLE_PER_DAY = 3;
@@ -13,9 +14,11 @@ function dateKeyInBangkok(iso: string): string {
 export function MonthView({
   monthStart,
   bookings,
+  basePath = "/dashboard/bookings",
 }: {
   monthStart: string; // "YYYY-MM-01"
   bookings: CalendarBooking[];
+  basePath?: string;
 }) {
   const byDay = new Map<string, CalendarBooking[]>();
   for (const b of bookings) {
@@ -40,13 +43,13 @@ export function MonthView({
         <h2 className="text-lg font-medium">{monthLabel}</h2>
         <div className="flex gap-2">
           <Link
-            href={`/dashboard/bookings?view=month&date=${addMonths(monthStart, -1)}`}
+            href={`${basePath}?view=month&date=${addMonths(monthStart, -1)}`}
             className="rounded-full border border-border px-3 py-1.5 text-sm hover:bg-page"
           >
             ← Prev
           </Link>
           <Link
-            href={`/dashboard/bookings?view=month&date=${addMonths(monthStart, 1)}`}
+            href={`${basePath}?view=month&date=${addMonths(monthStart, 1)}`}
             className="rounded-full border border-border px-3 py-1.5 text-sm hover:bg-page"
           >
             Next →
@@ -67,22 +70,58 @@ export function MonthView({
           return (
             <Link
               key={day}
-              href={`/dashboard/bookings?view=day&date=${day}`}
-              className={`flex min-h-24 flex-col gap-1 bg-surface p-1.5 hover:bg-page ${
+              href={`${basePath}?view=day&date=${day}`}
+              className={`flex min-h-12 flex-col gap-1 bg-surface p-1.5 hover:bg-page sm:min-h-24 ${
                 inMonth ? "" : "opacity-40"
               }`}
             >
               <div className="font-medium">{dayNum}</div>
-              {dayBookings.slice(0, MAX_VISIBLE_PER_DAY).map((b) => (
-                <div key={b.id} className="truncate rounded bg-accent/10 px-1 py-0.5 text-[10px] text-ink">
-                  {formatTimeOnly(b.startTime)} {b.customerName ?? "Unnamed"}
-                </div>
-              ))}
-              {dayBookings.length > MAX_VISIBLE_PER_DAY && (
-                <div className="text-[10px] text-ink-muted">
-                  +{dayBookings.length - MAX_VISIBLE_PER_DAY} more
+
+              {/* Mobile: a small dot per booking (colored by status) instead of
+                  squeezing full text rows into a ~50px-wide cell. */}
+              {dayBookings.length > 0 && (
+                <div className="flex flex-wrap items-center gap-0.5 sm:hidden">
+                  {dayBookings.slice(0, 6).map((b) => (
+                    <span
+                      key={b.id}
+                      className="h-1.5 w-1.5 shrink-0 rounded-full"
+                      style={{ background: b.isFlagged ? "#a8681c" : statusMeta(b.status).color }}
+                    />
+                  ))}
+                  {dayBookings.length > 6 && (
+                    <span className="text-[9px] text-ink-muted">+{dayBookings.length - 6}</span>
+                  )}
                 </div>
               )}
+
+              {/* Desktop/tablet: real detail, enough width to read it. */}
+              <div className="hidden sm:flex sm:flex-col sm:gap-1">
+                {dayBookings.slice(0, MAX_VISIBLE_PER_DAY).map((b) => {
+                  const meta = statusMeta(b.status);
+                  return (
+                    <div
+                      key={b.id}
+                      className={`flex items-center gap-1 truncate rounded px-1 py-0.5 text-[10px] ${
+                        b.isFlagged ? "bg-[#a8681c]/10 text-[#a8681c]" : ""
+                      }`}
+                      style={!b.isFlagged ? { color: meta.color } : undefined}
+                    >
+                      <span
+                        className="h-1.5 w-1.5 shrink-0 rounded-full"
+                        style={{ background: b.isFlagged ? "#a8681c" : meta.color }}
+                      />
+                      <span className="truncate">
+                        {formatTimeOnly(b.startTime)} {b.customerName ?? "Unnamed"}
+                      </span>
+                    </div>
+                  );
+                })}
+                {dayBookings.length > MAX_VISIBLE_PER_DAY && (
+                  <div className="text-[10px] text-ink-muted">
+                    +{dayBookings.length - MAX_VISIBLE_PER_DAY} more
+                  </div>
+                )}
+              </div>
             </Link>
           );
         })}

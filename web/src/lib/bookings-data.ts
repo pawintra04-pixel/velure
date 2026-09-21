@@ -7,9 +7,14 @@ export type CalendarBooking = {
   status: string;
   amount: number;
   serviceName: string;
+  staffId: string;
   staffName: string;
   customerName: string | null;
   hasPayment: boolean;
+  classSessionId: string | null;
+  ownerNote: string | null;
+  isFlagged: boolean;
+  paymentMethod: string | null;
 };
 
 export async function getBookingsInRange(
@@ -20,7 +25,9 @@ export async function getBookingsInRange(
   return withBusinessContext(businessId, async (c) => {
     const { rows } = await c.query(
       `SELECT b.id, b.start_time, b.end_time, b.status, b.amount, b.stripe_payment_intent_id,
-              s.name AS service_name, st.name AS staff_name, cu.name AS customer_name
+              b.class_session_id, b.owner_note, b.is_flagged, b.payment_method,
+              s.name AS service_name, st.id AS staff_id, st.name AS staff_name,
+              cu.name AS customer_name
        FROM bookings b
        JOIN services s ON s.id = b.service_id
        JOIN staff st ON st.id = b.staff_id
@@ -36,9 +43,93 @@ export async function getBookingsInRange(
       status: r.status,
       amount: r.amount,
       serviceName: r.service_name,
+      staffId: r.staff_id,
       staffName: r.staff_name,
       customerName: r.customer_name,
       hasPayment: Boolean(r.stripe_payment_intent_id),
+      classSessionId: r.class_session_id,
+      ownerNote: r.owner_note,
+      isFlagged: r.is_flagged,
+      paymentMethod: r.payment_method,
+    }));
+  });
+}
+
+export type CalendarClassSession = {
+  id: string;
+  startTime: string;
+  endTime: string;
+  staffId: string;
+  staffName: string;
+  serviceName: string;
+  resourceName: string | null;
+  capacity: number;
+  seatsBooked: number;
+  ownerNote: string | null;
+  isFlagged: boolean;
+};
+
+export async function getClassSessionsInRange(
+  businessId: string,
+  startISO: string,
+  endISO: string
+): Promise<CalendarClassSession[]> {
+  return withBusinessContext(businessId, async (c) => {
+    const { rows } = await c.query(
+      `SELECT cs.id, cs.start_time, cs.end_time, cs.staff_id, cs.capacity, cs.seats_booked,
+              cs.owner_note, cs.is_flagged, s.name AS service_name, st.name AS staff_name,
+              r.name AS resource_name
+       FROM class_sessions cs
+       JOIN services s ON s.id = cs.service_id
+       JOIN staff st ON st.id = cs.staff_id
+       LEFT JOIN resources r ON r.id = cs.resource_id
+       WHERE cs.start_time >= $1 AND cs.start_time < $2
+       ORDER BY cs.start_time ASC`,
+      [startISO, endISO]
+    );
+    return rows.map((r) => ({
+      id: r.id,
+      startTime: r.start_time,
+      endTime: r.end_time,
+      staffId: r.staff_id,
+      staffName: r.staff_name,
+      serviceName: r.service_name,
+      resourceName: r.resource_name,
+      capacity: r.capacity,
+      seatsBooked: r.seats_booked,
+      ownerNote: r.owner_note,
+      isFlagged: r.is_flagged,
+    }));
+  });
+}
+
+export type CalendarStaffBlock = {
+  id: string;
+  startTime: string;
+  endTime: string;
+  staffId: string;
+  reason: string | null;
+};
+
+export async function getStaffBlocksInRange(
+  businessId: string,
+  startISO: string,
+  endISO: string
+): Promise<CalendarStaffBlock[]> {
+  return withBusinessContext(businessId, async (c) => {
+    const { rows } = await c.query(
+      `SELECT id, start_time, end_time, staff_id, reason
+       FROM staff_blocks
+       WHERE start_time >= $1 AND start_time < $2
+       ORDER BY start_time ASC`,
+      [startISO, endISO]
+    );
+    return rows.map((r) => ({
+      id: r.id,
+      startTime: r.start_time,
+      endTime: r.end_time,
+      staffId: r.staff_id,
+      reason: r.reason,
     }));
   });
 }

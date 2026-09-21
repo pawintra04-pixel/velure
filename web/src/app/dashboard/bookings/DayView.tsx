@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { CalendarBooking } from "@/lib/bookings-data";
 import { addDays } from "@/lib/bookings-data";
-import { BookingRow } from "./BookingRow";
+import { BookingRow, BookingList } from "./BookingRow";
 
 export function DayView({ date, bookings }: { date: string; bookings: CalendarBooking[] }) {
   const label = new Intl.DateTimeFormat("en-US", {
@@ -32,15 +32,18 @@ export function DayView({ date, bookings }: { date: string; bookings: CalendarBo
         </div>
       </div>
 
-      <div className="mt-4 flex flex-col gap-3">
-        {bookings.length === 0 && (
-          <div className="rounded-2xl border border-border bg-surface p-5 text-sm text-ink-muted">
+      <div className="mt-4">
+        {bookings.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-ink-muted">
             No bookings on this day.
           </div>
+        ) : (
+          <BookingList>
+            {bookings.map((b) => (
+              <BookingRow key={b.id} b={b} />
+            ))}
+          </BookingList>
         )}
-        {bookings.map((b) => (
-          <BookingRow key={b.id} b={b} />
-        ))}
       </div>
     </div>
   );

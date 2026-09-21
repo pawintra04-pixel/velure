@@ -10,11 +10,13 @@ import {
   startOfMonth,
 } from "@/lib/bookings-data";
 import { ViewTabs } from "./ViewTabs";
-import { BookingRow } from "./BookingRow";
+import { BookingRow, BookingList } from "./BookingRow";
 import { DayView } from "./DayView";
 import { WeekView } from "./WeekView";
 import { MonthView } from "./MonthView";
 import { NewBookingForm } from "./NewBookingForm";
+import { CategoryTabs } from "./CategoryTabs";
+import { PageShell, PageHeader } from "@/components/dashboard/PageShell";
 
 function toISO(d: Date): string {
   return d.toISOString();
@@ -22,9 +24,18 @@ function toISO(d: Date): string {
 
 const STATUS_FILTER_LABELS: Record<string, string> = {
   "CONFIRMED,COMPLETED": "Confirmed",
-  "TEMPORARY_HOLD,PAYMENT_PENDING": "Pending",
+  "TEMPORARY_HOLD,PAYMENT_PENDING": "Unpaid",
   "CANCELLED,NO_SHOW,PAYMENT_FAILED,EXPIRED": "Cancelled/no-show",
+  "CONFIRMED": "Paid",
+  "COMPLETED": "Completed",
+  "CANCELLED,NO_SHOW,PAYMENT_FAILED,EXPIRED,REFUNDED,PARTIALLY_REFUNDED": "Cancelled",
 };
+
+// The default "All" list — everything still worth acting on. Cancelled/
+// no-show/failed/refunded bookings pile up over a business's lifetime and
+// don't need attention, so they're excluded here and live behind their own
+// "Cancelled" pill in CategoryTabs instead of bloating the default view.
+const ACTIVE_STATUSES = ["TEMPORARY_HOLD", "PAYMENT_PENDING", "CONFIRMED", "COMPLETED"];
 
 export default async function BookingsPage({
   searchParams,
@@ -42,29 +53,38 @@ export default async function BookingsPage({
   });
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-8">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold">Bookings</h1>
-            <p className="mt-1 text-sm text-ink-secondary">
-              Manage appointments across list, day, week, and month views.
-            </p>
-          </div>
-          <ViewTabs active={view} date={date} />
-        </div>
+    <PageShell width="standard">
+        <div className="border-b border-border pb-5">
+          <PageHeader
+            title="Bookings"
+            description="Manage appointments across list, day, week, and month views."
+            actions={
+              <>
+                <ViewTabs active={view} date={date} />
+                <NewBookingForm
+                  services={services}
+                  staff={staff}
+                  buttonClassName="rounded-lg bg-sunburst px-4 py-2 text-sm font-medium text-ink transition-[filter] hover:brightness-95"
+                />
+              </>
+            }
+          />
 
-        <div className="mt-4">
-          <NewBookingForm services={services} staff={staff} />
-        </div>
+          {view === "list" && (
+            <div className="mt-5">
+              <CategoryTabs activeStatus={status ?? null} />
+            </div>
+          )}
 
-        {statusFilter && (
-          <div className="mt-4 flex items-center gap-2 text-sm text-ink-secondary">
-            Showing: <span className="font-medium text-ink">{STATUS_FILTER_LABELS[status!] ?? status}</span>
-            <Link href="/dashboard/bookings" className="text-accent underline">
-              Clear
-            </Link>
-          </div>
-        )}
+          {statusFilter && (
+            <div className="mt-4 flex items-center gap-2 text-sm text-ink-secondary">
+              Showing: <span className="text-ink">{STATUS_FILTER_LABELS[status!] ?? status}</span>
+              <Link href="/dashboard/bookings" className="text-ink underline">
+                Clear
+              </Link>
+            </div>
+          )}
+        </div>
 
         <div className="mt-6">
           {view === "day" && (
@@ -108,7 +128,7 @@ export default async function BookingsPage({
             />
           )}
         </div>
-    </div>
+    </PageShell>
   );
 }
 
@@ -131,18 +151,23 @@ async function ListView({
     toISO(bangkokMidnight(addDays(today, statusFilter ? -90 : -1))),
     toISO(bangkokMidnight(addDays(today, 365)))
   );
-  const bookings = statusFilter ? allBookings.filter((b) => statusFilter.includes(b.status)) : allBookings;
+  const bookings = statusFilter
+    ? allBookings.filter((b) => statusFilter.includes(b.status))
+    : allBookings.filter((b) => ACTIVE_STATUSES.includes(b.status));
+
+  if (bookings.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-ink-muted">
+        {statusFilter ? "No bookings match this filter." : "No bookings yet."}
+      </div>
+    );
+  }
 
   return (
-    <div className="flex flex-col gap-3">
-      {bookings.length === 0 && (
-        <div className="rounded-2xl border border-border bg-surface p-5 text-sm text-ink-muted">
-          {statusFilter ? "No bookings match this filter." : "No bookings yet."}
-        </div>
-      )}
+    <BookingList>
       {bookings.map((b) => (
         <BookingRow key={b.id} b={b} />
       ))}
-    </div>
+    </BookingList>
   );
 }

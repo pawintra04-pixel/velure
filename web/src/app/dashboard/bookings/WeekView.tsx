@@ -1,7 +1,8 @@
 import Link from "next/link";
 import type { CalendarBooking } from "@/lib/bookings-data";
 import { addDays } from "@/lib/bookings-data";
-import { STATUS_STYLE, formatTimeOnly } from "./BookingRow";
+import { formatTimeOnly } from "./BookingRow";
+import { statusMeta } from "@/lib/booking-status";
 
 function dateKeyInBangkok(iso: string): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date(iso));
@@ -10,9 +11,12 @@ function dateKeyInBangkok(iso: string): string {
 export function WeekView({
   weekStart,
   bookings,
+  basePath = "/dashboard/bookings",
 }: {
   weekStart: string;
   bookings: CalendarBooking[];
+  /** Lets the Calendar page reuse this exact view while linking within itself. */
+  basePath?: string;
 }) {
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
   const byDay = new Map<string, CalendarBooking[]>();
@@ -30,13 +34,13 @@ export function WeekView({
         <h2 className="text-lg font-medium">{rangeLabel}</h2>
         <div className="flex gap-2">
           <Link
-            href={`/dashboard/bookings?view=week&date=${addDays(weekStart, -7)}`}
+            href={`${basePath}?view=week&date=${addDays(weekStart, -7)}`}
             className="rounded-full border border-border px-3 py-1.5 text-sm hover:bg-page"
           >
             ← Prev
           </Link>
           <Link
-            href={`/dashboard/bookings?view=week&date=${addDays(weekStart, 7)}`}
+            href={`${basePath}?view=week&date=${addDays(weekStart, 7)}`}
             className="rounded-full border border-border px-3 py-1.5 text-sm hover:bg-page"
           >
             Next →
@@ -55,24 +59,30 @@ export function WeekView({
           return (
             <Link
               key={day}
-              href={`/dashboard/bookings?view=day&date=${day}`}
-              className="flex flex-col gap-2 rounded-2xl border border-border bg-surface p-3 hover:border-accent"
+              href={`${basePath}?view=day&date=${day}`}
+              className="flex flex-col gap-1.5 rounded-xl border border-border bg-surface p-2.5 hover:border-ink/25"
             >
               <div className="text-xs font-medium text-ink-secondary">{dayLabel}</div>
               {dayBookings.length === 0 && <div className="text-xs text-ink-muted">—</div>}
-              {dayBookings.map((b) => (
-                <div key={b.id} className="rounded-lg border border-border px-2 py-1.5 text-xs">
-                  <div className="font-medium">{formatTimeOnly(b.startTime)}</div>
-                  <div className="truncate text-ink-muted">{b.customerName ?? "Unnamed"}</div>
-                  <span
-                    className={`mt-1 inline-block rounded-full px-1.5 py-0.5 text-[10px] ${
-                      STATUS_STYLE[b.status] ?? "bg-ink/5 text-ink-muted"
-                    }`}
-                  >
-                    {b.status.replace("_", " ")}
-                  </span>
-                </div>
-              ))}
+              {dayBookings.map((b) => {
+                const meta = statusMeta(b.status);
+                return (
+                  <div key={b.id} className={`rounded-lg px-1.5 py-1 text-xs ${b.isFlagged ? "bg-[#fdf3e6]/60" : ""}`}>
+                    <div className="flex items-center gap-1 font-mono">
+                      {b.isFlagged && "📌"}
+                      {formatTimeOnly(b.startTime)}
+                    </div>
+                    <div className="truncate text-ink-muted">{b.customerName ?? "Unnamed"}</div>
+                    <div
+                      className={`mt-0.5 flex items-center gap-1 ${meta.strike ? "line-through" : ""}`}
+                      style={{ color: meta.color }}
+                    >
+                      <span className="h-1 w-1 shrink-0 rounded-full" style={{ background: meta.color }} />
+                      {meta.label}
+                    </div>
+                  </div>
+                );
+              })}
             </Link>
           );
         })}

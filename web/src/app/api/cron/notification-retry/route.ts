@@ -8,6 +8,13 @@ import { retryFailedNotifications } from "@/lib/notifications";
  * (e.g. WhatsApp before a Template is approved) doesn't retry forever.
  * Vercel signs cron requests with this bearer token automatically; this
  * guards the route from being triggered by anyone else who finds the URL.
+ *
+ * Runs once daily (03:00 Bangkok time), not every 15 minutes as first
+ * designed — Vercel's Hobby plan rejects any cron expression that would
+ * fire more than once a day (deploy-time error, discovered the hard way).
+ * Fine for this job's actual stakes: a failed notification's booking is
+ * already committed either way, so a slower retry only delays a customer
+ * hearing about it again, never risks anything.
  */
 export async function GET(req: Request) {
   const authHeader = req.headers.get("authorization");

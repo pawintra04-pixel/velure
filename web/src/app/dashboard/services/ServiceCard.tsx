@@ -6,12 +6,21 @@ import {
   addCustomField,
   deleteCustomField,
   deleteService,
+  addPackage,
+  deactivatePackage,
   type ActionResult,
 } from "./actions";
 import { formatBaht } from "@/lib/money";
 import { servicesText, tClassSeats, tMinBuffer, type Locale } from "@/lib/i18n";
 
 export type CustomField = { id: string; label: string; importance: "optional" | "important" | "required" };
+export type PackageDef = {
+  id: string;
+  name: string;
+  sessionCount: number;
+  priceAmount: number;
+  validityDays: number | null;
+};
 
 export type Service = {
   id: string;
@@ -25,6 +34,7 @@ export type Service = {
   image_url: string | null;
   capacity: number | null;
   customFields: CustomField[];
+  packages: PackageDef[];
 };
 
 export function ServiceCard({ service, locale }: { service: Service; locale: Locale }) {
@@ -41,6 +51,10 @@ export function ServiceCard({ service, locale }: { service: Service; locale: Loc
   );
   const [fieldState, fieldAction, fieldPending] = useActionState<ActionResult | null, FormData>(
     addCustomField,
+    null
+  );
+  const [packageState, packageAction, packagePending] = useActionState<ActionResult | null, FormData>(
+    addPackage,
     null
   );
 
@@ -226,6 +240,80 @@ export function ServiceCard({ service, locale }: { service: Service; locale: Loc
             </form>
             {fieldState && !fieldState.ok && (
               <div className="mt-2 text-sm text-[#d03b3b]">{fieldState.error}</div>
+            )}
+          </div>
+
+          <div>
+            <div className="text-sm font-medium text-ink-secondary">{t.packages}</div>
+            <p className="mt-1 text-xs text-ink-muted">{t.packagesHint}</p>
+
+            <div className="mt-3 flex flex-col gap-2">
+              {service.packages.map((p) => (
+                <div
+                  key={p.id}
+                  className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm"
+                >
+                  <div>
+                    <span className="font-medium">{p.name}</span>{" "}
+                    <span className="text-ink-muted">
+                      · {p.sessionCount} {t.sessionsSuffix} · {formatBaht(p.priceAmount)}
+                      {p.validityDays && ` · ${p.validityDays} ${t.daysSuffix}`}
+                    </span>
+                  </div>
+                  <form action={deactivatePackage}>
+                    <input type="hidden" name="packageId" value={p.id} />
+                    <button type="submit" className="text-xs text-ink-muted hover:text-ink-secondary">
+                      {t.remove}
+                    </button>
+                  </form>
+                </div>
+              ))}
+              {service.packages.length === 0 && (
+                <div className="text-sm text-ink-muted">{t.noPackagesYet}</div>
+              )}
+            </div>
+
+            <form action={packageAction} className="mt-3 flex flex-wrap items-center gap-2">
+              <input type="hidden" name="serviceId" value={service.id} />
+              <input
+                name="name"
+                placeholder={t.packageNamePlaceholder}
+                className="min-w-0 flex-1 rounded-lg border border-border px-3 py-2 text-sm"
+              />
+              <input
+                name="sessionCount"
+                type="number"
+                min={2}
+                step={1}
+                placeholder={t.sessionsSuffix}
+                className="w-24 rounded-lg border border-border px-3 py-2 text-sm"
+              />
+              <input
+                name="priceBaht"
+                type="number"
+                min={0}
+                step="0.01"
+                placeholder={t.priceBaht}
+                className="w-28 rounded-lg border border-border px-3 py-2 text-sm"
+              />
+              <input
+                name="validityDays"
+                type="number"
+                min={1}
+                step={1}
+                placeholder={t.validityDaysPlaceholder}
+                className="w-32 rounded-lg border border-border px-3 py-2 text-sm"
+              />
+              <button
+                type="submit"
+                disabled={packagePending}
+                className="rounded-xl border border-border px-4 py-2 text-sm font-medium hover:bg-page disabled:opacity-50"
+              >
+                {t.add}
+              </button>
+            </form>
+            {packageState && !packageState.ok && (
+              <div className="mt-2 text-sm text-[#d03b3b]">{packageState.error}</div>
             )}
           </div>
         </div>

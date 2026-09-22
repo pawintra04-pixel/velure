@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireOwner } from "@/lib/auth";
 import { withBusinessContext } from "@/db/client";
 import { releaseClassSeat } from "@/lib/classes";
+import { restorePackageSession } from "@/lib/packages";
 import { isStaffFreeForRange, isSlotConflictError } from "@/lib/staff-availability";
 import { stripe } from "@/lib/stripe";
 import { notify } from "@/lib/notifications";
@@ -252,13 +253,15 @@ export async function updateBookingStatus(
     const { rows: [updated] } = await c.query(
       `UPDATE bookings SET status = $1
        WHERE id = $2 AND status = ANY($3::booking_status[])
-       RETURNING class_session_id`,
+       RETURNING class_session_id, package_purchase_id`,
       [nextStatus, bookingId, allowedFrom]
     );
-    // Only an actual cancellation frees the seat — a no-show still took
-    // the spot, they just didn't turn up for it.
-    if (updated && nextStatus === "CANCELLED" && updated.class_session_id) {
-      await releaseClassSeat(c, updated.class_session_id);
+    // Only an actual cancellation frees the seat / restores the package
+    // session — a no-show still took the spot (and used the redemption),
+    // they just didn't turn up for it.
+    if (updated && nextStatus === "CANCELLED") {
+      if (updated.class_session_id) await releaseClassSeat(c, updated.class_session_id);
+      if (updated.package_purchase_id) await restorePackageSession(c, updated.package_purchase_id);
     }
     return Boolean(updated);
   });

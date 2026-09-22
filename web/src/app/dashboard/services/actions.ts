@@ -137,6 +137,59 @@ export async function deleteCustomField(formData: FormData): Promise<void> {
   revalidatePath("/dashboard/services");
 }
 
+export async function addPackage(
+  _prev: ActionResult | null,
+  formData: FormData
+): Promise<ActionResult> {
+  const owner = await requireOwner();
+
+  const serviceId = String(formData.get("serviceId") ?? "");
+  const name = String(formData.get("name") ?? "").trim();
+  const sessionCount = Number(formData.get("sessionCount"));
+  const priceBaht = Number(formData.get("priceBaht"));
+  const validityDaysRaw = String(formData.get("validityDays") ?? "").trim();
+  const validityDays = validityDaysRaw ? Number(validityDaysRaw) : null;
+
+  if (!serviceId || !name) {
+    return { ok: false, error: "A name and service are required." };
+  }
+  if (!Number.isInteger(sessionCount) || sessionCount < 2) {
+    return { ok: false, error: "Session count must be a whole number of 2 or more." };
+  }
+  if (!Number.isFinite(priceBaht) || priceBaht < 0) {
+    return { ok: false, error: "Price must be a valid amount." };
+  }
+  if (validityDays !== null && (!Number.isInteger(validityDays) || validityDays <= 0)) {
+    return { ok: false, error: "Validity must be a whole number of days (leave blank for no expiry)." };
+  }
+
+  await withBusinessContext(owner.businessId, (c) =>
+    c.query(
+      `INSERT INTO packages (business_id, service_id, name, session_count, price_amount, validity_days)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [owner.businessId, serviceId, name, sessionCount, Math.round(priceBaht * 100), validityDays]
+    )
+  );
+
+  revalidatePath("/dashboard/services");
+  return { ok: true };
+}
+
+export async function deactivatePackage(formData: FormData): Promise<void> {
+  const owner = await requireOwner();
+  const packageId = String(formData.get("packageId") ?? "");
+
+  // Deactivate, never delete — a package that's already been sold must
+  // keep existing forever for package_purchases' FK and for reports to
+  // keep making sense; is_active only controls whether it can be sold
+  // again, the same relationship resources.is_active has to new bookings.
+  await withBusinessContext(owner.businessId, (c) =>
+    c.query(`UPDATE packages SET is_active = false WHERE id = $1`, [packageId])
+  );
+
+  revalidatePath("/dashboard/services");
+}
+
 export async function deleteService(formData: FormData): Promise<void> {
   const owner = await requireOwner();
   const serviceId = String(formData.get("serviceId") ?? "");

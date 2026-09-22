@@ -1,6 +1,39 @@
 import { withBusinessContext } from "@/db/client";
 import type { CalendarBooking } from "@/lib/bookings-data";
 
+export type SellablePackage = {
+  id: string;
+  name: string;
+  serviceId: string;
+  serviceName: string;
+  sessionCount: number;
+  priceAmount: number;
+};
+
+// Every active package any service currently offers — for the "sell a
+// package" picker on a customer's page. Deliberately not scoped to one
+// service (a customer's page doesn't start from "which service" the way
+// ServiceCard's own package list does), so this lists across all of them.
+export async function listSellablePackages(businessId: string): Promise<SellablePackage[]> {
+  return withBusinessContext(businessId, async (c) => {
+    const { rows } = await c.query(
+      `SELECT p.id, p.name, p.service_id, s.name AS service_name, p.session_count, p.price_amount
+       FROM packages p
+       JOIN services s ON s.id = p.service_id
+       WHERE p.is_active
+       ORDER BY s.name, p.name`
+    );
+    return rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      serviceId: r.service_id,
+      serviceName: r.service_name,
+      sessionCount: r.session_count,
+      priceAmount: r.price_amount,
+    }));
+  });
+}
+
 export type CustomerListRow = {
   id: string;
   name: string;

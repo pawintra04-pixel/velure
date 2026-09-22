@@ -1,10 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireOwner } from "@/lib/auth";
-import { getCustomer, getBookingsForCustomer } from "@/lib/customers-data";
+import { getCustomer, getBookingsForCustomer, listSellablePackages } from "@/lib/customers-data";
+import { listActivePackagesForCustomer } from "@/lib/packages";
+import { withBusinessContext } from "@/db/client";
 import { BookingRow, BookingList } from "@/app/dashboard/bookings/BookingRow";
 import { NotesForm } from "./NotesForm";
 import { TagsForm } from "./TagsForm";
+import { PackagesSection } from "./PackagesSection";
 import { formatBaht } from "@/lib/money";
 import { PageShell, Surface } from "@/components/dashboard/PageShell";
 import { customersText, type Locale } from "@/lib/i18n";
@@ -31,6 +34,10 @@ export default async function CustomerDetailPage({
   if (!customer) notFound();
 
   const bookings = await getBookingsForCustomer(owner.businessId, customerId);
+  const [activePackages, sellablePackages] = await Promise.all([
+    withBusinessContext(owner.businessId, (c) => listActivePackagesForCustomer(c, customerId)),
+    listSellablePackages(owner.businessId),
+  ]);
   const now = new Date().getTime();
   const upcoming = bookings
     .filter((b) => new Date(b.startTime).getTime() > now && ["TEMPORARY_HOLD", "PAYMENT_PENDING", "CONFIRMED"].includes(b.status))
@@ -85,6 +92,13 @@ export default async function CustomerDetailPage({
           </Surface>
         </div>
       </div>
+
+      <PackagesSection
+        customerId={customer.id}
+        activePackages={activePackages}
+        sellablePackages={sellablePackages}
+        locale={locale}
+      />
 
       <div className="mt-8">
         <div className="text-[13.5px] font-semibold uppercase tracking-wide text-ink">

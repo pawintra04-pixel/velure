@@ -11,19 +11,28 @@ export default async function ServicesPage() {
   const t = servicesText[locale];
 
   const services = await withBusinessContext(owner.businessId, async (c) => {
+    // Two separate one-to-many children (custom fields, packages) — a
+    // single LEFT JOIN across both would cartesian-product every field
+    // against every package, so each is its own correlated subquery
+    // instead of sharing one GROUP BY (that also avoids needing DISTINCT,
+    // which would have silently broken custom fields' sort_order).
     const { rows } = await c.query<Service>(
       `SELECT s.id, s.name, s.duration_minutes, s.buffer_minutes, s.price_amount,
               s.payment_mode, s.deposit_amount, s.description, s.image_url, s.capacity,
-              COALESCE(
-                json_agg(
-                  json_build_object('id', f.id, 'label', f.label, 'importance', f.importance)
-                  ORDER BY f.sort_order
-                ) FILTER (WHERE f.id IS NOT NULL),
-                '[]'
-              ) AS "customFields"
+              (SELECT COALESCE(json_agg(
+                 json_build_object('id', f.id, 'label', f.label, 'importance', f.importance)
+                 ORDER BY f.sort_order
+               ), '[]')
+               FROM service_custom_fields f WHERE f.service_id = s.id) AS "customFields",
+              (SELECT COALESCE(json_agg(
+                 json_build_object(
+                   'id', pkg.id, 'name', pkg.name, 'sessionCount', pkg.session_count,
+                   'priceAmount', pkg.price_amount, 'validityDays', pkg.validity_days
+                 )
+                 ORDER BY pkg.created_at
+               ), '[]')
+               FROM packages pkg WHERE pkg.service_id = s.id AND pkg.is_active) AS "packages"
        FROM services s
-       LEFT JOIN service_custom_fields f ON f.service_id = s.id
-       GROUP BY s.id
        ORDER BY s.created_at`
     );
     return rows;

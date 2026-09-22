@@ -3,6 +3,7 @@
 import { adminPool, withBusinessContext } from "@/db/client";
 import { getAvailableSlots, type Slot } from "@/lib/availability";
 import { releaseClassSeat } from "@/lib/classes";
+import { restorePackageSession } from "@/lib/packages";
 import { notify, clearReminderRecord } from "@/lib/notifications";
 import { isSlotConflictError } from "@/lib/staff-availability";
 
@@ -14,6 +15,7 @@ type PolicyCheck = {
   rescheduleCutoffHours: number;
   cancelCutoffHours: number;
   classSessionId: string | null;
+  packagePurchaseId: string | null;
 };
 
 /**
@@ -24,7 +26,7 @@ type PolicyCheck = {
  */
 async function loadPolicyCheck(bookingId: string): Promise<PolicyCheck | null> {
   const { rows: [row] } = await adminPool.query(
-    `SELECT b.business_id, b.service_id, b.status, b.start_time, b.class_session_id,
+    `SELECT b.business_id, b.service_id, b.status, b.start_time, b.class_session_id, b.package_purchase_id,
             biz.reschedule_cutoff_hours, biz.cancel_cutoff_hours
      FROM bookings b
      JOIN businesses biz ON biz.id = b.business_id
@@ -40,6 +42,7 @@ async function loadPolicyCheck(bookingId: string): Promise<PolicyCheck | null> {
     rescheduleCutoffHours: row.reschedule_cutoff_hours,
     cancelCutoffHours: row.cancel_cutoff_hours,
     classSessionId: row.class_session_id,
+    packagePurchaseId: row.package_purchase_id,
   };
 }
 
@@ -77,9 +80,13 @@ export async function cancelBooking(bookingId: string): Promise<ManageActionResu
       `UPDATE bookings SET status = 'CANCELLED' WHERE id = $1 AND status = 'CONFIRMED'`,
       [bookingId]
     );
-    // Free the seat back up — class_sessions.seats_booked only ever moves
-    // through explicit release calls like this one, never a live count.
-    if (result.rowCount && check.classSessionId) await releaseClassSeat(c, check.classSessionId);
+    // Free the seat / restore the package session back up — neither
+    // class_sessions.seats_booked nor a package's balance ever moves
+    // through anything but an explicit call like this, never a live count.
+    if (result.rowCount) {
+      if (check.classSessionId) await releaseClassSeat(c, check.classSessionId);
+      if (check.packagePurchaseId) await restorePackageSession(c, check.packagePurchaseId);
+    }
     return result.rowCount ?? 0;
   });
   // Someone else (the owner, or a concurrent request) could have changed

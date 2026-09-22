@@ -23,8 +23,8 @@ export async function getStatTiles(businessId: string): Promise<StatTiles> {
          (SELECT count(*)::int FROM bookings
             WHERE status IN ('CONFIRMED', 'COMPLETED')
               AND start_time::date = now()::date) AS today_bookings,
-         (SELECT coalesce(sum(amount), 0)::int FROM bookings
-            WHERE status IN ('CONFIRMED', 'COMPLETED')
+         (SELECT coalesce(sum(amount - coalesce(refunded_amount, 0)), 0)::int FROM bookings
+            WHERE status IN ('CONFIRMED', 'COMPLETED', 'REFUNDED', 'PARTIALLY_REFUNDED')
               AND date_trunc('month', start_time) = date_trunc('month', now())) AS month_revenue,
          (SELECT count(*)::int FROM bookings
             WHERE status IN ('TEMPORARY_HOLD', 'PAYMENT_PENDING')) AS pending_payment,
@@ -47,9 +47,9 @@ export async function getMonthlyRevenue(businessId: string): Promise<MonthlyReve
     const { rows } = await c.query(
       `SELECT
          date_trunc('month', start_time) AS month,
-         sum(amount)::int AS total
+         sum(amount - coalesce(refunded_amount, 0))::int AS total
        FROM bookings
-       WHERE status IN ('CONFIRMED', 'COMPLETED')
+       WHERE status IN ('CONFIRMED', 'COMPLETED', 'REFUNDED', 'PARTIALLY_REFUNDED')
          AND start_time >= date_trunc('year', now())
        GROUP BY 1
        ORDER BY 1`

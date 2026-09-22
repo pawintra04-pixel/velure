@@ -12,9 +12,12 @@ export type CalendarBooking = {
   customerName: string | null;
   hasPayment: boolean;
   classSessionId: string | null;
+  packagePurchaseId: string | null;
   ownerNote: string | null;
   isFlagged: boolean;
   paymentMethod: string | null;
+  refundedAmount: number | null;
+  refundedAt: string | null;
 };
 
 export async function getBookingsInRange(
@@ -25,7 +28,8 @@ export async function getBookingsInRange(
   return withBusinessContext(businessId, async (c) => {
     const { rows } = await c.query(
       `SELECT b.id, b.start_time, b.end_time, b.status, b.amount, b.stripe_payment_intent_id,
-              b.class_session_id, b.owner_note, b.is_flagged, b.payment_method,
+              b.class_session_id, b.package_purchase_id, b.owner_note, b.is_flagged, b.payment_method,
+              b.refunded_amount, b.refunded_at,
               s.name AS service_name, st.id AS staff_id, st.name AS staff_name,
               cu.name AS customer_name
        FROM bookings b
@@ -48,9 +52,12 @@ export async function getBookingsInRange(
       customerName: r.customer_name,
       hasPayment: Boolean(r.stripe_payment_intent_id),
       classSessionId: r.class_session_id,
+      packagePurchaseId: r.package_purchase_id,
       ownerNote: r.owner_note,
       isFlagged: r.is_flagged,
       paymentMethod: r.payment_method,
+      refundedAmount: r.refunded_amount,
+      refundedAt: r.refunded_at,
     }));
   });
 }

@@ -2,9 +2,22 @@ import { formatBaht } from "@/lib/money";
 import type { CalendarBooking } from "@/lib/bookings-data";
 import { statusMeta } from "@/lib/booking-status";
 import { updateBookingStatus, updateBookingNote } from "./actions";
-import { RefundButton } from "./RefundButton";
+import { RefundButton, type RefundKind } from "./RefundButton";
 import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
-import { bookingsText, tPaidLine, type Locale } from "@/lib/i18n";
+import { bookingsText, tPaidLine, tRefundedLine, type Locale } from "@/lib/i18n";
+
+// Which of the three refund paths applies to this booking (see
+// refundBooking's own comment in actions.ts) — null means nothing to
+// refund/restore, so no button should render at all. Decided from the
+// booking's own data the same way the server does, purely for which
+// control to show; the server independently re-derives and enforces this,
+// never trusts the client's choice of kind.
+function refundKindFor(b: CalendarBooking): RefundKind | null {
+  if (b.hasPayment && b.amount > 0) return "stripe";
+  if (b.packagePurchaseId) return "package";
+  if (b.amount > 0) return "cash";
+  return null;
+}
 
 // Kept as a className map (not the shared statusMeta color) for WeekView's
 // small filled chips specifically — a background tint needs a Tailwind
@@ -94,6 +107,7 @@ function StatusDot({ status, locale }: { status: string; locale: Locale }) {
 // so N bookings read as one list, not N cards.
 export function BookingRow({ b, locale, compact = false }: { b: CalendarBooking; locale: Locale; compact?: boolean }) {
   const t = bookingsText[locale];
+  const refundKind = refundKindFor(b);
   return (
     <details
       id={`booking-${b.id}`}
@@ -123,6 +137,11 @@ export function BookingRow({ b, locale, compact = false }: { b: CalendarBooking;
             )}
           </div>
           {b.ownerNote && <div className="mt-0.5 truncate text-[13px] text-[#a8681c]">{b.ownerNote}</div>}
+          {b.refundedAt && (
+            <div className="mt-0.5 truncate text-[13px] text-ink-muted">
+              {tRefundedLine(locale, b.refundedAmount != null ? formatBaht(b.refundedAmount) : null, b.refundedAt)}
+            </div>
+          )}
         </div>
 
         <span className="hidden shrink-0 sm:block sm:w-40">
@@ -192,8 +211,8 @@ export function BookingRow({ b, locale, compact = false }: { b: CalendarBooking;
               buttonClassName="rounded-full border border-border px-3 py-2 text-xs hover:bg-page"
             />
           )}
-          {b.hasPayment && b.amount > 0 && REFUNDABLE_STATUSES.includes(b.status) && (
-            <RefundButton bookingId={b.id} b={b} locale={locale} />
+          {refundKind && REFUNDABLE_STATUSES.includes(b.status) && (
+            <RefundButton bookingId={b.id} b={b} locale={locale} kind={refundKind} />
           )}
         </div>
 

@@ -58,6 +58,12 @@ export type ReportData = {
 };
 
 const SETTLED = ["CONFIRMED", "COMPLETED"];
+// For revenue sums only (never booking counts) — see customers-data.ts's
+// identical constant for why: a partially refunded booking is still real
+// revenue net of what came back, and a fully refunded one nets to 0 here
+// automatically (refunded_amount = amount), so this only changes the
+// previously-wrong PARTIALLY_REFUNDED case, not full refunds.
+const SETTLED_OR_REFUNDED = [...SETTLED, "REFUNDED", "PARTIALLY_REFUNDED"];
 
 export async function getReportData(
   businessId: string,
@@ -69,15 +75,15 @@ export async function getReportData(
       `SELECT
          (SELECT count(*)::int FROM bookings
             WHERE start_time >= $1 AND start_time < $2 AND status = ANY($3::booking_status[])) AS settled_bookings,
-         (SELECT coalesce(sum(amount), 0)::int FROM bookings
-            WHERE start_time >= $1 AND start_time < $2 AND status = ANY($3::booking_status[])) AS total_revenue,
+         (SELECT coalesce(sum(amount - coalesce(refunded_amount, 0)), 0)::int FROM bookings
+            WHERE start_time >= $1 AND start_time < $2 AND status = ANY($4::booking_status[])) AS total_revenue,
          (SELECT count(*)::int FROM bookings
             WHERE start_time >= $1 AND start_time < $2 AND status = 'CANCELLED') AS cancelled_count,
          (SELECT count(*)::int FROM bookings
             WHERE start_time >= $1 AND start_time < $2 AND status = 'NO_SHOW') AS no_show_count,
          (SELECT count(*)::int FROM bookings
             WHERE start_time >= $1 AND start_time < $2) AS all_count`,
-      [startISO, endISO, SETTLED]
+      [startISO, endISO, SETTLED, SETTLED_OR_REFUNDED]
     );
 
     const settledBookings = overviewRow.settled_bookings;
@@ -98,25 +104,25 @@ export async function getReportData(
     const { rows: byStaffRows } = await c.query(
       `SELECT st.name,
               count(*) FILTER (WHERE b.status = ANY($3::booking_status[]))::int AS bookings,
-              coalesce(sum(b.amount) FILTER (WHERE b.status = ANY($3::booking_status[])), 0)::int AS revenue
+              coalesce(sum(b.amount - coalesce(b.refunded_amount, 0)) FILTER (WHERE b.status = ANY($4::booking_status[])), 0)::int AS revenue
        FROM bookings b
        JOIN staff st ON st.id = b.staff_id
        WHERE b.start_time >= $1 AND b.start_time < $2
        GROUP BY st.name
        ORDER BY revenue DESC`,
-      [startISO, endISO, SETTLED]
+      [startISO, endISO, SETTLED, SETTLED_OR_REFUNDED]
     );
 
     const { rows: byServiceRows } = await c.query(
       `SELECT s.name,
               count(*) FILTER (WHERE b.status = ANY($3::booking_status[]))::int AS bookings,
-              coalesce(sum(b.amount) FILTER (WHERE b.status = ANY($3::booking_status[])), 0)::int AS revenue
+              coalesce(sum(b.amount - coalesce(b.refunded_amount, 0)) FILTER (WHERE b.status = ANY($4::booking_status[])), 0)::int AS revenue
        FROM bookings b
        JOIN services s ON s.id = b.service_id
        WHERE b.start_time >= $1 AND b.start_time < $2
        GROUP BY s.name
        ORDER BY revenue DESC`,
-      [startISO, endISO, SETTLED]
+      [startISO, endISO, SETTLED, SETTLED_OR_REFUNDED]
     );
 
     return {

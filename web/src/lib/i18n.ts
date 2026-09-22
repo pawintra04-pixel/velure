@@ -219,9 +219,18 @@ export const bookingsText: Record<Locale, Record<string, string>> = {
     continue: "Continue",
     refundNotice:
       "This sends money back to the customer's original payment method through Stripe. It cannot be undone from Velure.",
+    cashRefundNotice:
+      "This booking was paid in person, not through Stripe — this just records that you handed the money back. It doesn't move any money itself.",
     back: "Back",
     refunding: "Refunding…",
     confirmRefund: "Confirm refund",
+    restoreSession: "Restore session",
+    restoring: "Restoring…",
+    confirmRestore: "Confirm restore",
+    restoreNotice: "This booking used a session from the customer's package. Restoring it adds one session back to their remaining balance — no money is involved.",
+    restoreQuestion: "Restore this package session?",
+    refundedLine: "Refunded",
+    sessionRestoredLine: "Session restored",
   },
   th: {
     title: "การจอง",
@@ -285,9 +294,17 @@ export const bookingsText: Record<Locale, Record<string, string>> = {
     partial: "บางส่วน",
     continue: "ดำเนินการต่อ",
     refundNotice: "เงินจะถูกคืนไปยังช่องทางชำระเงินเดิมของลูกค้าผ่าน Stripe การดำเนินการนี้ไม่สามารถย้อนกลับได้จาก Velure",
+    cashRefundNotice: "คิวนี้จ่ายเงินสดหน้าร้าน ไม่ได้ผ่าน Stripe — การกดนี้แค่บันทึกว่าคืนเงินให้ลูกค้าแล้ว ไม่มีเงินเคลื่อนไหวผ่านระบบจริง",
     back: "ย้อนกลับ",
     refunding: "กำลังคืนเงิน…",
     confirmRefund: "ยืนยันการคืนเงิน",
+    restoreSession: "คืนสิทธิ์แพ็กเกจ",
+    restoring: "กำลังคืนสิทธิ์…",
+    confirmRestore: "ยืนยันการคืนสิทธิ์",
+    restoreNotice: "คิวนี้ใช้สิทธิ์จากแพ็กเกจของลูกค้าไปแล้ว การคืนจะเพิ่มจำนวนครั้งกลับเข้ายอดคงเหลือของลูกค้า 1 ครั้ง ไม่มีเรื่องเงินเกี่ยวข้อง",
+    restoreQuestion: "คืนสิทธิ์แพ็กเกจของคิวนี้?",
+    refundedLine: "คืนเงินแล้ว",
+    sessionRestoredLine: "คืนสิทธิ์แพ็กเกจแล้ว",
   },
 };
 
@@ -314,6 +331,23 @@ export function tPaidRefunding(locale: Locale, paidAmount: string, refundAmount:
 
 export function tMoreCount(locale: Locale, count: number): string {
   return locale === "th" ? `อีก ${count} รายการ` : `+${count} more`;
+}
+
+function formatShortDate(iso: string, locale: Locale): string {
+  return new Intl.DateTimeFormat(locale === "th" ? "th-TH" : "en-US", {
+    timeZone: "Asia/Bangkok",
+    dateStyle: "medium",
+  }).format(new Date(iso));
+}
+
+// Shown on a REFUNDED/PARTIALLY_REFUNDED booking's row — amountBaht is
+// already formatted (formatBaht), so this only composes the line + date.
+// null amount means a package-session restore (no money involved).
+export function tRefundedLine(locale: Locale, amountBaht: string | null, dateISO: string): string {
+  const t = bookingsText[locale];
+  const date = formatShortDate(dateISO, locale);
+  if (amountBaht === null) return `${t.sessionRestoredLine} · ${date}`;
+  return `${t.refundedLine} ${amountBaht} · ${date}`;
 }
 
 // --- Calendar page ---

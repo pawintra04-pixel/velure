@@ -7,12 +7,30 @@ import type { CalendarBooking } from "@/lib/bookings-data";
 import { formatTime } from "./BookingRow";
 import { bookingsText, tRefundQuestion, tFullAmount, tPaidRefunding, type Locale } from "@/lib/i18n";
 
+export type RefundKind = "stripe" | "package" | "cash";
+
 // Refund is financially consequential, so this is a real two-step flow —
 // choose an amount, then an explicit confirmation naming the customer,
 // booking, and exact amount before anything reaches Stripe — not a single
 // click. Success is only ever shown after Stripe/the server actually
 // confirms it (refundBooking's own ok/error result), never assumed.
-export function RefundButton({ bookingId, b, locale }: { bookingId: string; b: CalendarBooking; locale: Locale }) {
+//
+// `kind` only changes copy and whether the amount step exists — the actual
+// branch (Stripe call / package restore / plain status update) is decided
+// server-side in refundBooking from the booking's own data, never trusted
+// from here. "package" skips the amount step entirely: a redeemed session
+// is a single unit, not a partial amount, so there's nothing to choose.
+export function RefundButton({
+  bookingId,
+  b,
+  locale,
+  kind,
+}: {
+  bookingId: string;
+  b: CalendarBooking;
+  locale: Locale;
+  kind: RefundKind;
+}) {
   const t = bookingsText[locale];
   const [step, setStep] = useState<"closed" | "amount" | "confirm">("closed");
   const [mode, setMode] = useState<"full" | "partial">("full");
@@ -26,13 +44,13 @@ export function RefundButton({ bookingId, b, locale }: { bookingId: string; b: C
   function submit() {
     setError(null);
     startTransition(async () => {
-      const result = await refundBooking(bookingId, mode === "full" ? null : Number(amountBaht));
+      const result = await refundBooking(bookingId, kind === "package" || mode === "full" ? null : Number(amountBaht));
       if (!result.ok) {
         setError(result.error);
         setStep("confirm");
         return;
       }
-      setSuccess(result.message ?? "Refund issued");
+      setSuccess(result.message ?? (kind === "package" ? "Package session restored" : "Refund issued"));
       setStep("closed");
     });
   }
@@ -43,11 +61,13 @@ export function RefundButton({ bookingId, b, locale }: { bookingId: string; b: C
         <button
           onClick={() => {
             setSuccess(null);
-            setStep("amount");
+            // Package restores have nothing to choose an amount for — go
+            // straight to the confirmation step.
+            setStep(kind === "package" ? "confirm" : "amount");
           }}
           className="rounded-full border border-border px-3 py-2 text-xs hover:bg-page"
         >
-          {t.refund}
+          {kind === "package" ? t.restoreSession : t.refund}
         </button>
         {success && <div className="mt-1 text-xs text-[#1b8a5a]">✓ {success}</div>}
       </div>
@@ -95,27 +115,34 @@ export function RefundButton({ bookingId, b, locale }: { bookingId: string; b: C
   }
 
   // step === "confirm"
+  const backStep = kind === "package" ? "closed" : "amount";
   return (
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center"
-      onClick={() => !isPending && setStep("amount")}
+      onClick={() => !isPending && setStep(backStep)}
     >
       <div className="w-full max-w-sm rounded-2xl bg-surface p-5 text-sm" onClick={(e) => e.stopPropagation()}>
-        <div className="text-[15px] text-ink">{tRefundQuestion(locale, formatBaht(Math.round(refundAmountBaht * 100)))}</div>
+        <div className="text-[15px] text-ink">
+          {kind === "package" ? t.restoreQuestion : tRefundQuestion(locale, formatBaht(Math.round(refundAmountBaht * 100)))}
+        </div>
         <div className="mt-3 rounded-lg bg-page px-3 py-2 text-ink">
           <div>{b.customerName ?? t.unnamedCustomer}</div>
           <div className="text-ink-secondary">{b.serviceName}</div>
           <div className="text-ink-secondary">{formatTime(b.startTime)}</div>
-          <div className="text-ink-secondary">
-            {tPaidRefunding(locale, formatBaht(b.amount), formatBaht(Math.round(refundAmountBaht * 100)))}
-          </div>
+          {kind !== "package" && (
+            <div className="text-ink-secondary">
+              {tPaidRefunding(locale, formatBaht(b.amount), formatBaht(Math.round(refundAmountBaht * 100)))}
+            </div>
+          )}
         </div>
-        <p className="mt-3 text-ink-secondary">{t.refundNotice}</p>
+        <p className="mt-3 text-ink-secondary">
+          {kind === "package" ? t.restoreNotice : kind === "cash" ? t.cashRefundNotice : t.refundNotice}
+        </p>
         {error && <div className="mt-2 text-[#d03b3b]">{error}</div>}
         <div className="mt-4 flex justify-end gap-2">
           <button
             type="button"
-            onClick={() => setStep("amount")}
+            onClick={() => setStep(backStep)}
             disabled={isPending}
             className="rounded-full border border-border px-4 py-2 text-sm hover:bg-page disabled:opacity-50"
           >
@@ -127,7 +154,13 @@ export function RefundButton({ bookingId, b, locale }: { bookingId: string; b: C
             disabled={isPending}
             className="rounded-full bg-[#d03b3b] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
           >
-            {isPending ? t.refunding : t.confirmRefund}
+            {isPending
+              ? kind === "package"
+                ? t.restoring
+                : t.refunding
+              : kind === "package"
+                ? t.confirmRestore
+                : t.confirmRefund}
           </button>
         </div>
       </div>

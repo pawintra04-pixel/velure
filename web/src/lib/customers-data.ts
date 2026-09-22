@@ -47,6 +47,14 @@ export type CustomerListRow = {
 };
 
 const SETTLED = ["CONFIRMED", "COMPLETED"];
+// For revenue sums only (never for visit/booking counts) — a booking that
+// was later partially or fully refunded is still a real revenue event, just
+// reduced by whatever came back. Excluding REFUNDED/PARTIALLY_REFUNDED
+// entirely (the old behavior) silently dropped a PARTIALLY_REFUNDED
+// booking's whole original amount instead of just the refunded part; a
+// fully REFUNDED booking nets to 0 here automatically since
+// refunded_amount equals amount, so this changes nothing for full refunds.
+const SETTLED_OR_REFUNDED = [...SETTLED, "REFUNDED", "PARTIALLY_REFUNDED"];
 
 // Search is a plain ILIKE across the three fields an owner would actually
 // remember a customer by — fine at pilot scale (no full-text index needed
@@ -63,10 +71,10 @@ export async function searchCustomers(
     const { rows } = await c.query(
       `SELECT c.id, c.name, c.phone, c.email, c.tags,
               (SELECT count(*)::int FROM bookings b WHERE b.customer_id = c.id) AS booking_count,
-              (SELECT coalesce(sum(b.amount), 0)::int FROM bookings b
+              (SELECT coalesce(sum(b.amount - coalesce(b.refunded_amount, 0)), 0)::int FROM bookings b
                  WHERE b.customer_id = c.id AND b.status = ANY($3::booking_status[])) AS total_spend,
               (SELECT max(b.start_time) FROM bookings b
-                 WHERE b.customer_id = c.id AND b.status = ANY($3::booking_status[])) AS last_visit,
+                 WHERE b.customer_id = c.id AND b.status = ANY($4::booking_status[])) AS last_visit,
               (SELECT count(*)::int FROM bookings b
                  WHERE b.customer_id = c.id AND b.status = 'NO_SHOW') AS no_show_count
        FROM customers c
@@ -76,7 +84,7 @@ export async function searchCustomers(
          AND ($2::text IS NULL OR $2 = ANY(c.tags))
        ORDER BY c.created_at DESC
        LIMIT 200`,
-      [q || null, tag || null, SETTLED]
+      [q || null, tag || null, SETTLED_OR_REFUNDED, SETTLED]
     );
     return rows.map((r) => ({
       id: r.id,
@@ -122,8 +130,8 @@ export async function getCustomer(businessId: string, customerId: string): Promi
   return withBusinessContext(businessId, async (c) => {
     const { rows: [row] } = await c.query(
       `SELECT c.id, c.name, c.phone, c.email, c.notes, c.tags, c.created_at,
-              (SELECT coalesce(sum(b.amount), 0)::int FROM bookings b
-                 WHERE b.customer_id = c.id AND b.status = ANY($2::booking_status[])) AS total_spend,
+              (SELECT coalesce(sum(b.amount - coalesce(b.refunded_amount, 0)), 0)::int FROM bookings b
+                 WHERE b.customer_id = c.id AND b.status = ANY($3::booking_status[])) AS total_spend,
               (SELECT count(*)::int FROM bookings b
                  WHERE b.customer_id = c.id AND b.status = ANY($2::booking_status[])) AS visit_count,
               (SELECT count(*)::int FROM bookings b
@@ -131,7 +139,7 @@ export async function getCustomer(businessId: string, customerId: string): Promi
               (SELECT max(b.start_time) FROM bookings b
                  WHERE b.customer_id = c.id AND b.status = ANY($2::booking_status[])) AS last_visit
        FROM customers c WHERE c.id = $1`,
-      [customerId, SETTLED]
+      [customerId, SETTLED, SETTLED_OR_REFUNDED]
     );
     if (!row) return null;
     return {
@@ -160,7 +168,8 @@ export async function getBookingsForCustomer(
   return withBusinessContext(businessId, async (c) => {
     const { rows } = await c.query(
       `SELECT b.id, b.start_time, b.end_time, b.status, b.amount, b.stripe_payment_intent_id,
-              b.class_session_id, b.owner_note, b.is_flagged, b.payment_method,
+              b.class_session_id, b.package_purchase_id, b.owner_note, b.is_flagged, b.payment_method,
+              b.refunded_amount, b.refunded_at,
               s.name AS service_name, st.id AS staff_id, st.name AS staff_name,
               cu.name AS customer_name
        FROM bookings b
@@ -184,9 +193,12 @@ export async function getBookingsForCustomer(
       customerName: r.customer_name,
       hasPayment: Boolean(r.stripe_payment_intent_id),
       classSessionId: r.class_session_id,
+      packagePurchaseId: r.package_purchase_id,
       ownerNote: r.owner_note,
       isFlagged: r.is_flagged,
       paymentMethod: r.payment_method,
+      refundedAmount: r.refunded_amount,
+      refundedAt: r.refunded_at,
     }));
   });
 }

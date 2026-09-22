@@ -14,6 +14,18 @@ export type ManualBookingResult = { ok: true } | { ok: false; error: string };
 
 export type RefundResult = { ok: true; message?: string } | { ok: false; error: string };
 
+const REFUNDABLE_STATUSES = ["CONFIRMED", "COMPLETED", "CANCELLED", "NO_SHOW"];
+
+type RefundLookup = {
+  kind: "stripe" | "package" | "cash";
+  paymentIntentId: string | null;
+  stripeAccountId: string | null;
+  packagePurchaseId: string | null;
+  bookingAmount: number;
+  status: string;
+  classSessionId: string | null;
+};
+
 /**
  * Deliberately manual, not automatic on cancel — refund policy varies by
  * business (deposit forfeited? full refund inside 24h? case by case?) and
@@ -21,48 +33,77 @@ export type RefundResult = { ok: true; message?: string } | { ok: false; error: 
  * money moving without a human choosing to move it. One refund per
  * booking in this pass (full or partial) — no support yet for issuing a
  * second partial refund on top of a first.
+ *
+ * Branches on the booking's own data — never trusts the client to say
+ * which kind of refund this is:
+ * - stripe_payment_intent_id set -> real Stripe refund (unchanged from
+ *   before this comment; the original behavior).
+ * - no Stripe intent but package_purchase_id set -> the booking was paid
+ *   for by redeeming a package session, not a Stripe charge, so "refund"
+ *   means restoring that session (restorePackageSession, the same call
+ *   cancellation already makes) — full only, no partial amount concept
+ *   since no money moved through this app for it.
+ * - neither -> paid in person (cash) outside Stripe. Nothing to call out
+ *   to; this just records that the owner handed money back, same
+ *   full/partial shape as the Stripe path minus the API call.
  */
 export async function refundBooking(bookingId: string, amountBaht: number | null): Promise<RefundResult> {
   const owner = await requireOwner();
 
-  let paymentIntentId: string;
-  let stripeAccountId: string;
-  let bookingAmount: number;
-  let originalStatus: string;
-  let classSessionId: string | null;
+  let lookup: RefundLookup;
   try {
-    const result = await withBusinessContext(owner.businessId, async (c) => {
+    lookup = await withBusinessContext(owner.businessId, async (c) => {
       const { rows: [booking] } = await c.query<{
         stripe_payment_intent_id: string | null;
+        package_purchase_id: string | null;
         amount: number;
         status: string;
         stripe_account_id: string | null;
         class_session_id: string | null;
       }>(
-        `SELECT b.stripe_payment_intent_id, b.amount, b.status, b.class_session_id, biz.stripe_account_id
+        `SELECT b.stripe_payment_intent_id, b.package_purchase_id, b.amount, b.status,
+                b.class_session_id, biz.stripe_account_id
          FROM bookings b JOIN businesses biz ON biz.id = b.business_id
          WHERE b.id = $1`,
         [bookingId]
       );
-      if (!booking || !booking.stripe_payment_intent_id || !booking.stripe_account_id) {
-        throw new Error("no_payment");
+      if (!booking) throw new Error("no_payment");
+      if (!REFUNDABLE_STATUSES.includes(booking.status)) throw new Error("not_refundable");
+
+      if (booking.stripe_payment_intent_id) {
+        if (!booking.stripe_account_id) throw new Error("no_payment");
+        return {
+          kind: "stripe" as const,
+          paymentIntentId: booking.stripe_payment_intent_id,
+          stripeAccountId: booking.stripe_account_id,
+          packagePurchaseId: null,
+          bookingAmount: booking.amount,
+          status: booking.status,
+          classSessionId: booking.class_session_id,
+        };
       }
-      if (!["CONFIRMED", "COMPLETED", "CANCELLED", "NO_SHOW"].includes(booking.status)) {
-        throw new Error("not_refundable");
+      if (booking.package_purchase_id) {
+        return {
+          kind: "package" as const,
+          paymentIntentId: null,
+          stripeAccountId: null,
+          packagePurchaseId: booking.package_purchase_id,
+          bookingAmount: booking.amount,
+          status: booking.status,
+          classSessionId: booking.class_session_id,
+        };
       }
+      if (booking.amount <= 0) throw new Error("no_payment");
       return {
-        paymentIntentId: booking.stripe_payment_intent_id,
-        stripeAccountId: booking.stripe_account_id,
+        kind: "cash" as const,
+        paymentIntentId: null,
+        stripeAccountId: null,
+        packagePurchaseId: null,
         bookingAmount: booking.amount,
         status: booking.status,
         classSessionId: booking.class_session_id,
       };
     });
-    paymentIntentId = result.paymentIntentId;
-    stripeAccountId = result.stripeAccountId;
-    bookingAmount = result.bookingAmount;
-    originalStatus = result.status;
-    classSessionId = result.classSessionId;
   } catch (err) {
     if ((err as Error).message === "no_payment") {
       return { ok: false, error: "This booking has no payment to refund." };
@@ -74,44 +115,60 @@ export async function refundBooking(bookingId: string, amountBaht: number | null
     return { ok: false, error: "Something went wrong. Please try again." };
   }
 
-  const refundAmountSatang = amountBaht != null ? Math.round(amountBaht * 100) : undefined;
-  if (refundAmountSatang !== undefined && (refundAmountSatang <= 0 || refundAmountSatang > bookingAmount)) {
+  const { kind, paymentIntentId, stripeAccountId, packagePurchaseId, bookingAmount, status: originalStatus, classSessionId } = lookup;
+
+  // Package restores are always full (a redeemed session is a single unit,
+  // not a partial amount) — any amountBaht the client sent is ignored for
+  // this kind, same principle as the branch above: the server decides.
+  const refundAmountSatang = kind !== "package" && amountBaht != null ? Math.round(amountBaht * 100) : undefined;
+  if (kind !== "package" && refundAmountSatang !== undefined && (refundAmountSatang <= 0 || refundAmountSatang > bookingAmount)) {
     return { ok: false, error: "Refund amount must be between 0 and the amount paid." };
   }
 
-  try {
-    // Idempotency key scoped to this exact booking + amount — a double
-    // click or a retried request for the same refund reaches Stripe as the
-    // same request instead of two separate refunds; a genuinely different
-    // amount (e.g. full after a partial) gets its own key, as it should.
-    await stripe.refunds.create(
-      { payment_intent: paymentIntentId, ...(refundAmountSatang !== undefined ? { amount: refundAmountSatang } : {}) },
-      { stripeAccount: stripeAccountId, idempotencyKey: `refund_${bookingId}_${refundAmountSatang ?? "full"}` }
-    );
-  } catch (err) {
-    console.error("Stripe refund failed", err);
-    return { ok: false, error: "Stripe refused the refund. Check the payment in your Stripe dashboard." };
+  if (kind === "stripe") {
+    try {
+      // Idempotency key scoped to this exact booking + amount — a double
+      // click or a retried request for the same refund reaches Stripe as
+      // the same request instead of two separate refunds; a genuinely
+      // different amount (e.g. full after a partial) gets its own key.
+      await stripe.refunds.create(
+        { payment_intent: paymentIntentId!, ...(refundAmountSatang !== undefined ? { amount: refundAmountSatang } : {}) },
+        { stripeAccount: stripeAccountId!, idempotencyKey: `refund_${bookingId}_${refundAmountSatang ?? "full"}` }
+      );
+    } catch (err) {
+      console.error("Stripe refund failed", err);
+      return { ok: false, error: "Stripe refused the refund. Check the payment in your Stripe dashboard." };
+    }
   }
 
-  const isFull = refundAmountSatang === undefined || refundAmountSatang === bookingAmount;
+  const isFull = kind === "package" || refundAmountSatang === undefined || refundAmountSatang === bookingAmount;
+  const refundedAmountToRecord = kind === "package" ? null : (refundAmountSatang ?? bookingAmount);
+
   await withBusinessContext(owner.businessId, async (c) => {
     // Guarded on the status this refund was validated against, the same
     // "compare-and-swap" shape as updateBookingStatus — if a concurrent
     // request already moved this booking to REFUNDED/PARTIALLY_REFUNDED
     // (e.g. a race between two rapid clicks, both passing Stripe's
     // idempotency check as the same call), this UPDATE affects 0 rows and
-    // the seat is correctly released at most once.
+    // the seat/package session is correctly released at most once.
     const { rows: [updated] } = await c.query(
-      `UPDATE bookings SET status = $1 WHERE id = $2 AND status = $3 RETURNING id`,
-      [isFull ? "REFUNDED" : "PARTIALLY_REFUNDED", bookingId, originalStatus]
+      `UPDATE bookings SET status = $1, refunded_amount = $2, refunded_at = now()
+       WHERE id = $3 AND status = $4 RETURNING id`,
+      [isFull ? "REFUNDED" : "PARTIALLY_REFUNDED", refundedAmountToRecord, bookingId, originalStatus]
     );
+    if (!updated) return;
+
+    if (kind === "package" && packagePurchaseId) {
+      await restorePackageSession(c, packagePurchaseId);
+    }
     // A full refund of a still-CONFIRMED class seat is the refund-triggered
-    // equivalent of a cancellation (money is fully back, so the seat should
-    // be resellable) — mirrors updateBookingStatus's CANCELLED handling.
-    // Skip CANCELLED/NO_SHOW originals: CANCELLED already released its seat,
-    // and NO_SHOW/COMPLETED sessions are in the past and don't affect future
-    // capacity, so releasing again would double-decrement seats_booked.
-    if (updated && isFull && originalStatus === "CONFIRMED" && classSessionId) {
+    // equivalent of a cancellation (money/session is fully back, so the
+    // seat should be resellable) — mirrors updateBookingStatus's CANCELLED
+    // handling. Skip CANCELLED/NO_SHOW originals: CANCELLED already
+    // released its seat, and NO_SHOW/COMPLETED sessions are in the past and
+    // don't affect future capacity, so releasing again would
+    // double-decrement seats_booked.
+    if (isFull && originalStatus === "CONFIRMED" && classSessionId) {
       await releaseClassSeat(c, classSessionId);
     }
   });
@@ -119,7 +176,12 @@ export async function refundBooking(bookingId: string, amountBaht: number | null
   revalidatePath("/dashboard/bookings");
   revalidatePath("/dashboard/calendar");
   revalidatePath("/dashboard");
-  return { ok: true, message: isFull ? "Refund issued" : "Partial refund issued" };
+  revalidatePath("/dashboard/customers");
+  revalidatePath("/dashboard/reports");
+  return {
+    ok: true,
+    message: kind === "package" ? "Package session restored" : isFull ? "Refund issued" : "Partial refund issued",
+  };
 }
 
 /**

@@ -378,3 +378,40 @@ export async function sendWhatsAppBookingReminder(bookingId: string): Promise<Se
     (row, time) => `Reminder: ${row.service_name} with ${row.staff_name} on ${time}.`
   );
 }
+
+// Keyed by waitlist_entries.id, not a booking — see lib/waitlist.ts. Same
+// 24h-session-window caveat as every other proactive sender: without an
+// approved Meta Template this will mostly come back "failed" unless the
+// customer happened to message the business within the last 24h.
+export async function sendWhatsAppWaitlistInvite(waitlistEntryId: string): Promise<SendResult> {
+  const { rows: [row] } = await adminPool.query(
+    `SELECT w.business_id, cu.phone AS customer_phone, s.id AS service_id, s.name AS service_name,
+            w.target_date, biz.slug AS business_slug
+     FROM waitlist_entries w
+     JOIN services s ON s.id = w.service_id
+     JOIN businesses biz ON biz.id = w.business_id
+     LEFT JOIN customers cu ON cu.id = w.customer_id
+     WHERE w.id = $1`,
+    [waitlistEntryId]
+  );
+  if (!row || !row.customer_phone) {
+    console.log(`[whatsapp] no customer phone on file for waitlist entry ${waitlistEntryId} — skipping`);
+    return "skipped";
+  }
+  const business = await getBusinessWhatsAppByBusinessId(row.business_id);
+  if (!business) {
+    console.log(`[whatsapp] business ${row.business_id} has no WhatsApp connected — skipping`);
+    return "skipped";
+  }
+  const baseUrl = process.env.APP_BASE_URL ?? "http://localhost:3000";
+  const dateLabel = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Bangkok", dateStyle: "long" }).format(
+    new Date(`${row.target_date}T00:00:00+07:00`)
+  );
+  const waId = phoneToWaId(row.customer_phone);
+  return sendText(
+    business,
+    business.phoneNumberId,
+    waId,
+    `A spot opened up: ${row.service_name} on ${dateLabel}. Book now (first-come-first-served):\n${baseUrl}/book/${row.business_slug}/${row.service_id}`
+  );
+}

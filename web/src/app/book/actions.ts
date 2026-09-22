@@ -7,6 +7,18 @@ import { notify } from "@/lib/notifications";
 import { claimClassSeat, releaseClassSeat } from "@/lib/classes";
 import { getOrCreateAnonId } from "@/lib/anon-session";
 import { isStaffFreeForRange, isSlotConflictError } from "@/lib/staff-availability";
+import { joinWaitlist as joinWaitlistEntry, type JoinWaitlistResult } from "@/lib/waitlist";
+
+export async function joinWaitlist(input: {
+  businessId: string;
+  serviceId: string;
+  targetDate: string;
+  customerName: string;
+  customerPhone: string;
+  customerEmail: string;
+}): Promise<JoinWaitlistResult> {
+  return joinWaitlistEntry(input);
+}
 
 // Quick booking lets a visitor reserve a slot before typing anything —
 // which also means nothing stops one visitor from holding every remaining

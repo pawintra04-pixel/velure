@@ -61,6 +61,11 @@ const NAV_ITEMS = [
     setupKey: "resourcesConfigured" as const,
   },
   {
+    labelKey: "waitlist",
+    href: "/dashboard/waitlist",
+    icon: "M10 5v5l3.5 2M17 10a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z",
+  },
+  {
     labelKey: "share",
     href: "/dashboard/share",
     icon: "M14 6.5a2 2 0 1 0-1.9-2.7L7.8 6.4a2 2 0 1 0 0 3.2l4.3 2.6a2 2 0 1 0 .7-1.3L8.5 8.3a2 2 0 0 0 0-.6l4.3-2.6c.35.28.77.4 1.2.4Z",

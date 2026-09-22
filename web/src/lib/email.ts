@@ -216,6 +216,66 @@ export async function sendBookingCancelledEmail(bookingId: string): Promise<Send
  * rescheduleBooking clears any prior 'booking_reminder' row so a moved
  * booking gets reminded again relative to its new time.
  */
+/**
+ * Fire-and-forget, same shape as the booking-event senders above — but
+ * keyed by waitlist_entries.id instead of a booking, since a waitlist
+ * invite isn't about an existing booking (see lib/waitlist.ts). Links back
+ * to the service's booking page, not a specific slot: the invite means "a
+ * spot opened on your day," not a reservation, so the customer picks a time
+ * themselves same as any other visitor — first-come-first-served.
+ */
+export async function sendWaitlistInviteEmail(waitlistEntryId: string): Promise<SendResult> {
+  if (!resend) {
+    console.log(`[email] RESEND_API_KEY not set — skipping waitlist invite ${waitlistEntryId}`);
+    return "skipped";
+  }
+
+  try {
+    const { rows: [row] } = await adminPool.query(
+      `SELECT
+         cu.name AS customer_name, cu.email AS customer_email,
+         s.id AS service_id, s.name AS service_name,
+         w.target_date, biz.name AS business_name, biz.slug AS business_slug
+       FROM waitlist_entries w
+       JOIN services s ON s.id = w.service_id
+       JOIN businesses biz ON biz.id = w.business_id
+       LEFT JOIN customers cu ON cu.id = w.customer_id
+       WHERE w.id = $1`,
+      [waitlistEntryId]
+    );
+
+    if (!row || !row.customer_email) {
+      console.log(`[email] no customer email on file for waitlist entry ${waitlistEntryId} — skipping`);
+      return "skipped";
+    }
+
+    const dateLabel = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Bangkok",
+      dateStyle: "full",
+    }).format(new Date(`${row.target_date}T00:00:00+07:00`));
+    const bookUrl = `${APP_BASE_URL}/book/${row.business_slug}/${row.service_id}`;
+
+    await resend.emails.send({
+      from: FROM_EMAIL,
+      to: row.customer_email,
+      subject: `A spot opened up — ${row.service_name} at ${row.business_name}`,
+      html: `
+        <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+          <h2>Good news — a spot opened up</h2>
+          <p>Hi ${row.customer_name ?? "there"}, someone just cancelled a ${row.service_name} booking at ${row.business_name} on <strong>${dateLabel}</strong> — the day you asked to be notified about.</p>
+          <p><a href="${bookUrl}" style="display: inline-block; margin: 12px 0; padding: 10px 20px; background: #F8C61E; color: #252C37; text-decoration: none; border-radius: 999px; font-weight: 600;">Book now</a></p>
+          <p style="color: #888; font-size: 13px;">This spot is first-come-first-served — it may already be taken by the time you click through.</p>
+        </div>
+      `,
+    });
+    console.log(`[email] sent waitlist invite ${waitlistEntryId} to ${row.customer_email}`);
+    return "sent";
+  } catch (err) {
+    console.error(`[email] failed to send waitlist invite ${waitlistEntryId}`, err);
+    return "failed";
+  }
+}
+
 export async function sendBookingReminderEmail(bookingId: string): Promise<SendResult> {
   if (!resend) {
     console.log(`[email] RESEND_API_KEY not set — skipping reminder email for ${bookingId}`);

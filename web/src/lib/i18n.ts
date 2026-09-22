@@ -23,6 +23,7 @@ export const navLabels: Record<Locale, Record<string, string>> = {
     team: "Team",
     classes: "Classes",
     resources: "Resources",
+    waitlist: "Waitlist",
     share: "Share",
     reports: "Reports",
     settings: "Settings",
@@ -38,6 +39,7 @@ export const navLabels: Record<Locale, Record<string, string>> = {
     team: "พนักงาน",
     classes: "คลาส",
     resources: "ห้อง",
+    waitlist: "รอคิว",
     share: "แชร์",
     reports: "รายงาน",
     settings: "ตั้งค่า",
@@ -842,6 +844,37 @@ export function tRemoveResourceTitle(locale: Locale, name: string): string {
   if (locale === "th") return `ลบ ${name}?`;
   return `Remove ${name}?`;
 }
+
+// --- Waitlist ---
+
+export const waitlistText: Record<Locale, Record<string, string>> = {
+  en: {
+    title: "Waitlist",
+    description:
+      "Customers who asked to be notified when a slot opens. When a booking for their service and date is cancelled, the longest-waiting person is emailed/messaged automatically — this list is for visibility and cleanup, not action.",
+    noEntries: "No one is waiting right now.",
+    waiting: "Waiting",
+    notified: "Notified",
+    notifiedVia: "Notified via",
+    remove: "Remove",
+    removing: "Removing…",
+    removeTitle: "Remove this waitlist entry?",
+    removeDesc: "The customer won't be notified if a spot opens on this day anymore.",
+  },
+  th: {
+    title: "รอคิว",
+    description:
+      "รายชื่อลูกค้าที่ฝากไว้ให้แจ้งเตือนเมื่อมีคิวว่าง — เมื่อมีคนยกเลิกคิวของบริการ/วันเดียวกัน ระบบจะส่งอีเมล/ข้อความให้คนที่ฝากไว้นานที่สุดโดยอัตโนมัติ รายการนี้มีไว้ดูสถานะและล้างข้อมูลเก่าเท่านั้น ไม่ต้องกดอะไรเพิ่ม",
+    noEntries: "ตอนนี้ยังไม่มีใครฝากคิวไว้",
+    waiting: "รออยู่",
+    notified: "แจ้งเตือนแล้ว",
+    notifiedVia: "แจ้งผ่าน",
+    remove: "ลบ",
+    removing: "กำลังลบ…",
+    removeTitle: "ลบรายการรอคิวนี้?",
+    removeDesc: "ลูกค้าคนนี้จะไม่ได้รับแจ้งเตือนอีกแม้มีคิวว่างในวันนี้",
+  },
+};
 
 // --- Reports ---
 

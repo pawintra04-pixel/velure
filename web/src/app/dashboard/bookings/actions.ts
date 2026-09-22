@@ -8,6 +8,7 @@ import { restorePackageSession } from "@/lib/packages";
 import { isStaffFreeForRange, isSlotConflictError } from "@/lib/staff-availability";
 import { stripe } from "@/lib/stripe";
 import { notify } from "@/lib/notifications";
+import { checkWaitlistForCancelledSlot } from "@/lib/waitlist";
 
 export type ManualBookingResult = { ok: true } | { ok: false; error: string };
 
@@ -249,21 +250,26 @@ export async function updateBookingStatus(
     return { ok: false, error: "Invalid status change." };
   }
 
-  const changed = await withBusinessContext(owner.businessId, async (c) => {
-    const { rows: [updated] } = await c.query(
+  const updated = await withBusinessContext(owner.businessId, async (c) => {
+    const { rows: [row] } = await c.query<{
+      class_session_id: string | null;
+      package_purchase_id: string | null;
+      service_id: string;
+      start_time: string;
+    }>(
       `UPDATE bookings SET status = $1
        WHERE id = $2 AND status = ANY($3::booking_status[])
-       RETURNING class_session_id, package_purchase_id`,
+       RETURNING class_session_id, package_purchase_id, service_id, start_time`,
       [nextStatus, bookingId, allowedFrom]
     );
     // Only an actual cancellation frees the seat / restores the package
     // session — a no-show still took the spot (and used the redemption),
     // they just didn't turn up for it.
-    if (updated && nextStatus === "CANCELLED") {
-      if (updated.class_session_id) await releaseClassSeat(c, updated.class_session_id);
-      if (updated.package_purchase_id) await restorePackageSession(c, updated.package_purchase_id);
+    if (row && nextStatus === "CANCELLED") {
+      if (row.class_session_id) await releaseClassSeat(c, row.class_session_id);
+      if (row.package_purchase_id) await restorePackageSession(c, row.package_purchase_id);
     }
-    return Boolean(updated);
+    return row ?? null;
   });
 
   revalidatePath("/dashboard/bookings");
@@ -273,12 +279,15 @@ export async function updateBookingStatus(
   // Someone else could have already changed this booking's status (another
   // tab, a webhook, a concurrent request) — never claim success unless the
   // update actually matched a row.
-  if (!changed) {
+  if (!updated) {
     return { ok: false, error: "This booking already changed. Nothing was updated." };
   }
   // The owner cancelling from the dashboard is just as real a cancellation
   // as the customer's own self-service one — fire-and-forget, after commit.
-  if (nextStatus === "CANCELLED") void notify("booking_cancelled", bookingId);
+  if (nextStatus === "CANCELLED") {
+    void notify("booking_cancelled", bookingId);
+    void checkWaitlistForCancelledSlot(owner.businessId, updated.service_id, updated.start_time);
+  }
   return { ok: true, message: STATUS_CHANGE_MESSAGE[nextStatus] ?? "Booking updated" };
 }
 

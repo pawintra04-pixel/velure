@@ -6,6 +6,7 @@ import { releaseClassSeat } from "@/lib/classes";
 import { restorePackageSession } from "@/lib/packages";
 import { notify, clearReminderRecord } from "@/lib/notifications";
 import { isSlotConflictError } from "@/lib/staff-availability";
+import { checkWaitlistForCancelledSlot } from "@/lib/waitlist";
 
 type PolicyCheck = {
   businessId: string;
@@ -98,6 +99,7 @@ export async function cancelBooking(bookingId: string): Promise<ManageActionResu
   // Fire-and-forget, after the cancellation has already committed — an
   // email failure must never undo or block a real cancellation.
   void notify("booking_cancelled", bookingId);
+  void checkWaitlistForCancelledSlot(check.businessId, check.serviceId, check.startTime);
   return { ok: true };
 }
 

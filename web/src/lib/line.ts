@@ -116,3 +116,34 @@ export async function sendLineBookingReminder(bookingId: string): Promise<SendRe
     return `Reminder: ${row.service_name} at ${row.business_name}\nWith ${row.staff_name}\n${time}`;
   });
 }
+
+// Keyed by waitlist_entries.id, not a booking — see lib/waitlist.ts.
+export async function sendLineWaitlistInvite(waitlistEntryId: string): Promise<SendResult> {
+  try {
+    const { rows: [row] } = await adminPool.query(
+      `SELECT cu.line_user_id, s.id AS service_id, s.name AS service_name,
+              w.target_date, biz.name AS business_name, biz.slug AS business_slug
+       FROM waitlist_entries w
+       JOIN services s ON s.id = w.service_id
+       JOIN businesses biz ON biz.id = w.business_id
+       LEFT JOIN customers cu ON cu.id = w.customer_id
+       WHERE w.id = $1`,
+      [waitlistEntryId]
+    );
+    if (!row || !row.line_user_id) {
+      console.log(`[line] no connected LINE account for waitlist entry ${waitlistEntryId} — skipping`);
+      return "skipped";
+    }
+    const baseUrl = process.env.APP_BASE_URL ?? "http://localhost:3000";
+    const dateLabel = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Bangkok", dateStyle: "long" }).format(
+      new Date(`${row.target_date}T00:00:00+07:00`)
+    );
+    return await pushLineMessage(
+      row.line_user_id,
+      `A spot opened up at ${row.business_name}\n${row.service_name} on ${dateLabel}\nBook now (first-come-first-served):\n${baseUrl}/book/${row.business_slug}/${row.service_id}`
+    );
+  } catch (err) {
+    console.error(`[line] failed to send waitlist invite ${waitlistEntryId}`, err);
+    return "failed";
+  }
+}

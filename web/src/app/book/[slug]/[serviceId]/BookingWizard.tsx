@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { fetchSlots, createQuickHold } from "../../actions";
+import { fetchSlots, createQuickHold, joinWaitlist } from "../../actions";
 import type { Slot } from "@/lib/availability";
 
 function nextDays(n: number): { iso: string; weekday: string; day: string }[] {
@@ -51,6 +51,106 @@ function groupByPeriod(slots: Slot[]): { label: string; slots: Slot[] }[] {
     else groups[2].slots.push(slot);
   }
   return groups.filter((g) => g.slots.length > 0);
+}
+
+// Shown in place of the empty-slots message — lets a visitor leave contact
+// info against (service, date) instead of just seeing a dead end. No
+// payment, no reservation: joining only means "tell me if a spot opens."
+function JoinWaitlistForm({
+  businessId,
+  serviceId,
+  targetDate,
+}: {
+  businessId: string;
+  serviceId: string;
+  targetDate: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [pending, setPending] = useState(false);
+  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setPending(true);
+    setResult(null);
+    joinWaitlist({ businessId, serviceId, targetDate, customerName: name, customerPhone: phone, customerEmail: email })
+      .then((r) => {
+        setPending(false);
+        setResult(
+          r.ok
+            ? { ok: true, message: "You're on the list — we'll let you know if a spot opens on this day." }
+            : { ok: false, message: r.error }
+        );
+        if (r.ok) {
+          setName("");
+          setPhone("");
+          setEmail("");
+        }
+      })
+      .catch(() => {
+        setPending(false);
+        setResult({ ok: false, message: "Something went wrong. Please try again." });
+      });
+  }
+
+  if (result?.ok) {
+    return <div className="mt-3 text-sm text-ink">{result.message}</div>;
+  }
+
+  if (!open) {
+    return (
+      <div className="mt-3">
+        <div className="text-sm text-ink-muted">No available times on this day</div>
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="mt-2 rounded-full border border-border px-4 py-2 text-sm text-ink-secondary hover:border-sunburst hover:text-ink"
+        >
+          Notify me if a spot opens
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={submit} className="mt-3 flex flex-col gap-2 rounded-xl border border-border p-4">
+      <div className="text-sm text-ink">We&apos;ll text or email you if someone cancels on this day.</div>
+      <input
+        type="text"
+        required
+        placeholder="Your name"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        className="rounded-lg border border-border px-3 py-2 text-sm"
+      />
+      <input
+        type="tel"
+        required
+        placeholder="Phone number"
+        value={phone}
+        onChange={(e) => setPhone(e.target.value)}
+        className="rounded-lg border border-border px-3 py-2 text-sm"
+      />
+      <input
+        type="email"
+        placeholder="Email (optional)"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        className="rounded-lg border border-border px-3 py-2 text-sm"
+      />
+      <button
+        type="submit"
+        disabled={pending}
+        className="rounded-full bg-sunburst px-4 py-2 text-sm font-medium text-ink disabled:opacity-50"
+      >
+        {pending ? "Joining..." : "Join waitlist"}
+      </button>
+      {result && !result.ok && <div className="text-sm text-[#d03b3b]">{result.message}</div>}
+    </form>
+  );
 }
 
 export function BookingWizard({
@@ -152,7 +252,7 @@ export function BookingWizard({
       <div>
         <div className="text-sm text-ink-secondary">Available times</div>
         {slots.length === 0 ? (
-          <div className="mt-3 text-sm text-ink-muted">No available times on this day</div>
+          <JoinWaitlistForm businessId={businessId} serviceId={serviceId} targetDate={selectedDate} />
         ) : (
           <div className="mt-3 flex max-h-96 flex-col gap-5 overflow-y-auto pr-1">
             {periods.map((period) => (

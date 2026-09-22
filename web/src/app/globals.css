@@ -1,5 +1,17 @@
 @import "tailwindcss";
 
+/* Set by EmbedAutoResize only when a /book/* page is actually inside an
+   iframe (see its own comment). Without this, html/body's normal
+   min-h-full (root layout.tsx) makes the document always report its OWN
+   current iframe height back as scrollHeight — a self-referential loop
+   that locks the iframe at whatever height it started with instead of
+   ever shrinking to fit shorter pages. */
+html.velure-embedded,
+html.velure-embedded body {
+  height: auto;
+  min-height: 0;
+}
+
 :root {
   /* Warm ivory, not clinical white — the page ground surfaces (stat tiles,
      calendar, cards) sit on. Surfaces themselves stay pure white so they

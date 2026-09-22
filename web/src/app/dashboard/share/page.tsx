@@ -18,6 +18,30 @@ async function qrDataUrl(url: string): Promise<string> {
   return QRCode.toDataURL(url, { width: 240, margin: 1 });
 }
 
+// The iframe points straight at the same public booking page a plain link
+// opens — no separate embeddable booking implementation, so tenant
+// isolation, availability, and payment all stay exactly as correct as they
+// already are outside an iframe. The inline script only does one thing:
+// listen for this page's own height (posted by EmbedAutoResize, mounted on
+// every /book/* page) and resize the iframe to match, since a fixed height
+// would either clip content or leave dead space as the visitor moves
+// through service -> time -> details -> pay. event.source is checked so a
+// host page with other iframes/scripts on it can't have some unrelated
+// postMessage resize this one.
+function embedSnippet(elementId: string, url: string, title: string): string {
+  return `<iframe id="${elementId}" src="${url}" title="${title}" style="width:100%;height:900px;border:0;display:block" loading="lazy"></iframe>
+<script>
+(function () {
+  var iframe = document.getElementById("${elementId}");
+  window.addEventListener("message", function (e) {
+    if (e.source !== iframe.contentWindow) return;
+    if (!e.data || e.data.type !== "velure:resize") return;
+    iframe.style.height = e.data.height + "px";
+  });
+})();
+</script>`;
+}
+
 export default async function SharePage({
   searchParams,
 }: {
@@ -27,15 +51,15 @@ export default async function SharePage({
   const { tag } = await searchParams;
   const source = tag?.trim() ?? "";
 
-  const { slug, services } = await withBusinessContext(owner.businessId, async (c) => {
-    const { rows: [business] } = await c.query<{ slug: string }>(
-      `SELECT slug FROM businesses WHERE id = $1`,
+  const { slug, businessName, services } = await withBusinessContext(owner.businessId, async (c) => {
+    const { rows: [business] } = await c.query<{ slug: string; name: string }>(
+      `SELECT slug, name FROM businesses WHERE id = $1`,
       [owner.businessId]
     );
     const { rows: services } = await c.query<{ id: string; name: string }>(
       `SELECT id, name FROM services ORDER BY name`
     );
-    return { slug: business.slug, services };
+    return { slug: business.slug, businessName: business.name, services };
   });
 
   const businessUrl = withSource(`${APP_BASE_URL}/book/${slug}`, source);
@@ -113,6 +137,48 @@ export default async function SharePage({
           </div>
         </div>
       )}
+
+      <div className="mt-8">
+        <div className="text-[13.5px] font-semibold uppercase tracking-wide text-ink">
+          Embed on your website
+        </div>
+        <p className="mt-2 max-w-xl text-sm text-ink-secondary">
+          Paste this into your site&apos;s HTML to show the booking page right on your own
+          website. It resizes itself automatically as visitors move through it.
+        </p>
+
+        <Surface className="mt-3 p-5">
+          <div className="font-medium">Whole booking page</div>
+          <pre className="mt-2 overflow-x-auto rounded-lg bg-page p-3 font-mono text-xs text-ink-secondary">
+            {embedSnippet(`velure-embed-${slug}`, businessUrl, `Book with ${businessName}`)}
+          </pre>
+          <div className="mt-2">
+            <CopyButton
+              text={embedSnippet(`velure-embed-${slug}`, businessUrl, `Book with ${businessName}`)}
+              label="Copy embed code"
+            />
+          </div>
+        </Surface>
+
+        {serviceLinks.length > 0 && (
+          <div className="mt-3 flex flex-col gap-2">
+            {serviceLinks.map((s) => {
+              const snippet = embedSnippet(`velure-embed-${s.id}`, s.url, `Book ${s.name} with ${businessName}`);
+              return (
+                <details key={s.id} className="rounded-2xl border border-border bg-surface p-5">
+                  <summary className="cursor-pointer font-medium">{s.name}</summary>
+                  <pre className="mt-3 overflow-x-auto rounded-lg bg-page p-3 font-mono text-xs text-ink-secondary">
+                    {snippet}
+                  </pre>
+                  <div className="mt-2">
+                    <CopyButton text={snippet} label="Copy embed code" />
+                  </div>
+                </details>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </PageShell>
   );
 }

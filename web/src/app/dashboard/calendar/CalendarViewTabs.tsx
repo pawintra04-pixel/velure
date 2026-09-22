@@ -1,12 +1,13 @@
 import Link from "next/link";
+import { calendarText, type Locale } from "@/lib/i18n";
 
-const VIEWS = [
-  { key: "day", label: "Day" },
-  { key: "week", label: "Week" },
-  { key: "month", label: "Month" },
-];
-
-export function CalendarViewTabs({ active, date }: { active: string; date: string }) {
+export function CalendarViewTabs({ active, date, locale }: { active: string; date: string; locale: Locale }) {
+  const t = calendarText[locale];
+  const VIEWS = [
+    { key: "day", label: t.viewDay },
+    { key: "week", label: t.viewWeek },
+    { key: "month", label: t.viewMonth },
+  ];
   return (
     <div className="flex gap-1">
       {VIEWS.map((v) => (

@@ -7,6 +7,7 @@ import { deleteResource, toggleResourceActive } from "./actions";
 import { RoomTimeline, type RoomOccupant } from "./RoomTimeline";
 import { PageShell, PageHeader } from "@/components/dashboard/PageShell";
 import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
+import { resourcesText, tRemoveResourceTitle, type Locale } from "@/lib/i18n";
 
 function toISO(d: Date): string {
   return d.toISOString();
@@ -24,6 +25,8 @@ export default async function StudiosPage({
   searchParams: Promise<{ room?: string; date?: string }>;
 }) {
   const owner = await requireOwner();
+  const locale = owner.locale;
+  const t = resourcesText[locale];
   const { room, date = todayISOInBangkok() } = await searchParams;
 
   const { rooms } = await withBusinessContext(owner.businessId, async (c) => {
@@ -40,9 +43,9 @@ export default async function StudiosPage({
     <PageShell width="standard">
       <div className="border-b border-border pb-5">
         <PageHeader
-          title="Resources"
-          description="Rooms, stations, or spaces customers and staff use — pick one to see its whole day at a glance."
-          actions={<RoomForm />}
+          title={t.title}
+          description={t.description}
+          actions={<RoomForm locale={locale} />}
         />
       </div>
 
@@ -60,15 +63,14 @@ export default async function StudiosPage({
             }`}
           >
             {r.name}
-            {!r.is_active && <span className="ml-1.5 text-[11px]">(closed)</span>}
+            {!r.is_active && <span className="ml-1.5 text-[11px]">{t.closed}</span>}
           </Link>
         ))}
       </div>
 
       {rooms.length === 0 && (
         <div className="mt-4 rounded-2xl border border-dashed border-border p-8 text-center text-sm text-ink-muted">
-          No resources yet — add your first one, then assign it to a booking or class when you
-          schedule one.
+          {t.noResourcesYet}
         </div>
       )}
 
@@ -80,12 +82,12 @@ export default async function StudiosPage({
                 <h2 className="text-lg text-ink">{activeRoom.name}</h2>
                 {!activeRoom.is_active && (
                   <span className="rounded-full bg-[#fdf3e6] px-2 py-0.5 text-[11px] font-medium text-[#a8681c]">
-                    Closed temporarily
+                    {t.closedTemporarily}
                   </span>
                 )}
               </div>
               <div className="text-sm text-ink-secondary">
-                {new Intl.DateTimeFormat("en-US", {
+                {new Intl.DateTimeFormat(locale === "th" ? "th-TH" : "en-US", {
                   timeZone: "Asia/Bangkok",
                   weekday: "long",
                   day: "numeric",
@@ -98,25 +100,25 @@ export default async function StudiosPage({
                 href={`/dashboard/studios?room=${activeRoom.id}&date=${todayISOInBangkok()}`}
                 className="rounded-full border border-border px-3 py-1.5 text-sm hover:bg-page"
               >
-                Today
+                {t.today}
               </Link>
               <Link
                 href={`/dashboard/studios?room=${activeRoom.id}&date=${addDays(date, -1)}`}
                 className="rounded-full border border-border px-3 py-1.5 text-sm hover:bg-page"
               >
-                ← Prev
+                {t.prev}
               </Link>
               <Link
                 href={`/dashboard/studios?room=${activeRoom.id}&date=${addDays(date, 1)}`}
                 className="rounded-full border border-border px-3 py-1.5 text-sm hover:bg-page"
               >
-                Next →
+                {t.next}
               </Link>
             </div>
           </div>
 
           <div className="p-5">
-            <RoomSchedule businessId={owner.businessId} roomId={activeRoom.id} date={date} />
+            <RoomSchedule businessId={owner.businessId} roomId={activeRoom.id} date={date} locale={locale} />
           </div>
 
           <div className="flex flex-wrap items-center gap-4 border-t border-border px-5 py-3">
@@ -124,17 +126,17 @@ export default async function StudiosPage({
               <input type="hidden" name="resourceId" value={activeRoom.id} />
               <input type="hidden" name="nextActive" value={String(!activeRoom.is_active)} />
               <button type="submit" className="text-xs text-ink-muted hover:text-ink-secondary">
-                {activeRoom.is_active ? "Close temporarily" : "Reopen"}
+                {activeRoom.is_active ? t.closeTemporarily : t.reopen}
               </button>
             </form>
             <ConfirmSubmitButton
               action={deleteResource}
               hiddenFields={{ resourceId: activeRoom.id }}
-              label="Remove this resource"
-              pendingLabel="Removing…"
-              confirmTitle={`Remove ${activeRoom.name}?`}
-              confirmDescription="This permanently removes the room. Rooms with upcoming classes or bookings can't be removed — move or cancel those first, or use Close temporarily instead if this is just a short break."
-              confirmLabel="Remove"
+              label={t.removeResource}
+              pendingLabel={t.removing}
+              confirmTitle={tRemoveResourceTitle(locale, activeRoom.name)}
+              confirmDescription={t.removeResourceDesc}
+              confirmLabel={t.remove}
               danger
               buttonClassName="text-xs text-ink-muted hover:text-[#d03b3b]"
             />
@@ -149,10 +151,12 @@ async function RoomSchedule({
   businessId,
   roomId,
   date,
+  locale,
 }: {
   businessId: string;
   roomId: string;
   date: string;
+  locale: Locale;
 }) {
   const dow = dayOfWeek(date);
   const dayStart = toISO(bangkokMidnight(date));
@@ -222,5 +226,5 @@ async function RoomSchedule({
     return { businessHours: hours ?? null, occupants };
   });
 
-  return <RoomTimeline businessHours={businessHours} occupants={occupants} dateISO={date} />;
+  return <RoomTimeline businessHours={businessHours} occupants={occupants} dateISO={date} locale={locale} />;
 }

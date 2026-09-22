@@ -5,13 +5,7 @@ import { formatBaht } from "@/lib/money";
 import { RangeTabs } from "./RangeTabs";
 import { PrintButton } from "./PrintButton";
 import { PageShell, PageHeader } from "@/components/dashboard/PageShell";
-
-const RANGES: { key: ReportRangeKey; label: string }[] = [
-  { key: "week", label: "This week" },
-  { key: "month", label: "This month" },
-  { key: "year", label: "This year" },
-  { key: "all", label: "All time" },
-];
+import { reportsText, tRevenueBookingsDesc, tCancelledNoShow, type Locale } from "@/lib/i18n";
 
 export default async function ReportsPage({
   searchParams,
@@ -19,20 +13,29 @@ export default async function ReportsPage({
   searchParams: Promise<{ range?: string }>;
 }) {
   const owner = await requireOwner();
+  const locale = owner.locale;
+  const t = reportsText[locale];
+  const RANGES: { key: ReportRangeKey; label: string }[] = [
+    { key: "week", label: t.thisWeek },
+    { key: "month", label: t.thisMonth },
+    { key: "year", label: t.thisYear },
+    { key: "all", label: t.allTime },
+  ];
   const { range: rangeParam } = await searchParams;
   const rangeKey: ReportRangeKey = RANGES.some((r) => r.key === rangeParam)
     ? (rangeParam as ReportRangeKey)
     : "month";
 
-  const { startISO, endISO, label } = resolveReportRange(rangeKey, todayISOInBangkok());
+  const { startISO, endISO } = resolveReportRange(rangeKey, todayISOInBangkok());
+  const label = RANGES.find((r) => r.key === rangeKey)!.label;
   const report = await getReportData(owner.businessId, startISO, endISO);
 
   return (
     <PageShell width="wide" className="print:max-w-none">
       <div className="border-b border-border pb-5 print:hidden">
         <PageHeader
-          title="Reports"
-          description={`Revenue and bookings, ${label.toLowerCase()}.`}
+          title={t.title}
+          description={tRevenueBookingsDesc(locale, label)}
           actions={
             <>
               <RangeTabs ranges={RANGES} active={rangeKey} />
@@ -41,9 +44,9 @@ export default async function ReportsPage({
                 href={`/api/reports/export?range=${rangeKey}`}
                 className="rounded-full border border-border px-4 py-1.5 text-sm text-ink-secondary hover:bg-page"
               >
-                Export CSV
+                {t.exportCsv}
               </a>
-              <PrintButton />
+              <PrintButton locale={locale} />
             </>
           }
         />
@@ -55,19 +58,19 @@ export default async function ReportsPage({
           a single prominent row on desktop — not four separate dashboard
           cards. */}
       <div className="mt-8 grid grid-cols-2 divide-x divide-y divide-border rounded-2xl border border-border sm:grid-cols-4 sm:divide-y-0">
-        <Metric label="Settled bookings" value={String(report.overview.settledBookings)} />
-        <Metric label="Revenue" value={formatBaht(report.overview.totalRevenue)} />
-        <Metric label="Avg. booking value" value={formatBaht(report.overview.avgBookingValue)} />
+        <Metric label={t.settledBookings} value={String(report.overview.settledBookings)} />
+        <Metric label={t.revenue} value={formatBaht(report.overview.totalRevenue)} />
+        <Metric label={t.avgBookingValue} value={formatBaht(report.overview.avgBookingValue)} />
         <Metric
-          label="Cancellation rate"
+          label={t.cancellationRate}
           value={`${Math.round(report.overview.cancellationRate * 100)}%`}
-          hint={`${report.overview.cancelledCount} cancelled · ${report.overview.noShowCount} no-show`}
+          hint={tCancelledNoShow(locale, report.overview.cancelledCount, report.overview.noShowCount)}
         />
       </div>
 
       <div className="mt-10 grid grid-cols-1 gap-8 lg:grid-cols-2">
-        <BreakdownTable title="By team member" rows={report.byStaff} />
-        <BreakdownTable title="By service" rows={report.byService} />
+        <BreakdownTable title={t.byTeamMember} rows={report.byStaff} locale={locale} />
+        <BreakdownTable title={t.byService} rows={report.byService} locale={locale} />
       </div>
     </PageShell>
   );
@@ -86,23 +89,26 @@ function Metric({ label, value, hint }: { label: string; value: string; hint?: s
 function BreakdownTable({
   title,
   rows,
+  locale,
 }: {
   title: string;
   rows: { name: string; bookings: number; revenue: number }[];
+  locale: Locale;
 }) {
+  const t = reportsText[locale];
   return (
     <div className="rounded-2xl border border-border p-5 sm:p-6 print:border-black">
       <div className="text-[13px] font-semibold uppercase tracking-wide text-ink">{title}</div>
       {rows.length === 0 ? (
-        <div className="mt-3 text-sm text-ink-muted">No data for this range.</div>
+        <div className="mt-3 text-sm text-ink-muted">{t.noDataForRange}</div>
       ) : (
         <>
           <table className="mt-3 hidden w-full text-sm sm:table">
             <thead>
               <tr className="border-b border-border text-left text-xs text-ink-muted">
-                <th className="pb-2 font-normal">Name</th>
-                <th className="pb-2 font-normal">Bookings</th>
-                <th className="pb-2 text-right font-normal">Revenue</th>
+                <th className="pb-2 font-normal">{t.name}</th>
+                <th className="pb-2 font-normal">{t.bookings}</th>
+                <th className="pb-2 text-right font-normal">{t.revenue}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -121,7 +127,7 @@ function BreakdownTable({
               <div key={r.name} className="flex items-center justify-between gap-3 py-2.5">
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm text-ink">{r.name}</div>
-                  <div className="text-xs text-ink-muted">{r.bookings} bookings</div>
+                  <div className="text-xs text-ink-muted">{r.bookings} {t.bookingsUnit}</div>
                 </div>
                 <div className="shrink-0 font-mono text-sm text-ink">{formatBaht(r.revenue)}</div>
               </div>

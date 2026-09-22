@@ -3,6 +3,7 @@ import type { CalendarBooking } from "@/lib/bookings-data";
 import { addDays } from "@/lib/bookings-data";
 import { formatTimeOnly } from "./BookingRow";
 import { statusMeta } from "@/lib/booking-status";
+import { bookingsText, type Locale } from "@/lib/i18n";
 
 function dateKeyInBangkok(iso: string): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date(iso));
@@ -11,13 +12,16 @@ function dateKeyInBangkok(iso: string): string {
 export function WeekView({
   weekStart,
   bookings,
+  locale,
   basePath = "/dashboard/bookings",
 }: {
   weekStart: string;
   bookings: CalendarBooking[];
+  locale: Locale;
   /** Lets the Calendar page reuse this exact view while linking within itself. */
   basePath?: string;
 }) {
+  const t = bookingsText[locale];
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
   const byDay = new Map<string, CalendarBooking[]>();
   for (const b of bookings) {
@@ -26,7 +30,8 @@ export function WeekView({
     byDay.get(key)!.push(b);
   }
 
-  const rangeLabel = `${new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Bangkok", month: "short", day: "numeric" }).format(new Date(`${weekStart}T12:00:00+07:00`))} – ${new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Bangkok", month: "short", day: "numeric" }).format(new Date(`${addDays(weekStart, 6)}T12:00:00+07:00`))}`;
+  const intlLocale = locale === "th" ? "th-TH" : "en-US";
+  const rangeLabel = `${new Intl.DateTimeFormat(intlLocale, { timeZone: "Asia/Bangkok", month: "short", day: "numeric" }).format(new Date(`${weekStart}T12:00:00+07:00`))} – ${new Intl.DateTimeFormat(intlLocale, { timeZone: "Asia/Bangkok", month: "short", day: "numeric" }).format(new Date(`${addDays(weekStart, 6)}T12:00:00+07:00`))}`;
 
   return (
     <div>
@@ -37,13 +42,13 @@ export function WeekView({
             href={`${basePath}?view=week&date=${addDays(weekStart, -7)}`}
             className="rounded-full border border-border px-3 py-1.5 text-sm hover:bg-page"
           >
-            ← Prev
+            {t.prev}
           </Link>
           <Link
             href={`${basePath}?view=week&date=${addDays(weekStart, 7)}`}
             className="rounded-full border border-border px-3 py-1.5 text-sm hover:bg-page"
           >
-            Next →
+            {t.next}
           </Link>
         </div>
       </div>
@@ -51,7 +56,7 @@ export function WeekView({
       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-7">
         {days.map((day) => {
           const dayBookings = byDay.get(day) ?? [];
-          const dayLabel = new Intl.DateTimeFormat("en-US", {
+          const dayLabel = new Intl.DateTimeFormat(intlLocale, {
             timeZone: "Asia/Bangkok",
             weekday: "short",
             day: "numeric",
@@ -65,14 +70,14 @@ export function WeekView({
               <div className="text-xs font-medium text-ink-secondary">{dayLabel}</div>
               {dayBookings.length === 0 && <div className="text-xs text-ink-muted">—</div>}
               {dayBookings.map((b) => {
-                const meta = statusMeta(b.status);
+                const meta = statusMeta(b.status, locale);
                 return (
                   <div key={b.id} className={`rounded-lg px-1.5 py-1 text-xs ${b.isFlagged ? "bg-[#fdf3e6]/60" : ""}`}>
                     <div className="flex items-center gap-1 font-mono">
                       {b.isFlagged && "📌"}
                       {formatTimeOnly(b.startTime)}
                     </div>
-                    <div className="truncate text-ink-muted">{b.customerName ?? "Unnamed"}</div>
+                    <div className="truncate text-ink-muted">{b.customerName ?? t.unnamed}</div>
                     <div
                       className={`mt-0.5 flex items-center gap-1 ${meta.strike ? "line-through" : ""}`}
                       style={{ color: meta.color }}

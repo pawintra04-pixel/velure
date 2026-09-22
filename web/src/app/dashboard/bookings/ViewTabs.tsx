@@ -1,13 +1,14 @@
 import Link from "next/link";
+import { bookingsText, type Locale } from "@/lib/i18n";
 
-const VIEWS = [
-  { key: "list", label: "List" },
-  { key: "day", label: "Day" },
-  { key: "week", label: "Week" },
-  { key: "month", label: "Month" },
-];
-
-export function ViewTabs({ active, date }: { active: string; date: string }) {
+export function ViewTabs({ active, date, locale }: { active: string; date: string; locale: Locale }) {
+  const t = bookingsText[locale];
+  const VIEWS = [
+    { key: "list", label: t.viewList },
+    { key: "day", label: t.viewDay },
+    { key: "week", label: t.viewWeek },
+    { key: "month", label: t.viewMonth },
+  ];
   return (
     <div className="flex gap-1">
       {VIEWS.map((v) => (

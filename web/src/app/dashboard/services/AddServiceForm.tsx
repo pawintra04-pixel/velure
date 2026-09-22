@@ -2,8 +2,10 @@
 
 import { useActionState, useState } from "react";
 import { addService, type ActionResult } from "./actions";
+import { servicesText, type Locale } from "@/lib/i18n";
 
-export function AddServiceForm() {
+export function AddServiceForm({ locale }: { locale: Locale }) {
+  const t = servicesText[locale];
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState<ActionResult | null, FormData>(
     addService,
@@ -28,7 +30,7 @@ export function AddServiceForm() {
         onClick={() => setOpen(true)}
         className="rounded-lg bg-sunburst px-4 py-2 text-sm font-medium text-ink transition-[filter] hover:brightness-95"
       >
-        + Add service
+        {t.addService}
       </button>
     );
   }
@@ -39,14 +41,14 @@ export function AddServiceForm() {
       className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-5"
     >
       <div className="flex items-center justify-between">
-        <div className="text-sm font-medium text-ink-secondary">Add a service</div>
+        <div className="text-sm font-medium text-ink-secondary">{t.addServiceTitle}</div>
         <button type="button" onClick={() => setOpen(false)} className="text-xs text-ink-muted hover:text-ink-secondary">
-          Close
+          {t.close}
         </button>
       </div>
       <input
         name="name"
-        placeholder="Service name"
+        placeholder={t.serviceName}
         className="rounded-lg border border-border px-3 py-2 text-sm"
       />
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -54,14 +56,14 @@ export function AddServiceForm() {
           name="durationMinutes"
           type="number"
           min={1}
-          placeholder="Duration (min)"
+          placeholder={t.durationMin}
           className="rounded-lg border border-border px-3 py-2 text-sm"
         />
         <input
           name="bufferMinutes"
           type="number"
           min={0}
-          placeholder="Buffer (min)"
+          placeholder={t.bufferMin}
           defaultValue={0}
           className="rounded-lg border border-border px-3 py-2 text-sm"
         />
@@ -72,7 +74,7 @@ export function AddServiceForm() {
           type="number"
           min={0}
           step="0.01"
-          placeholder="Price (THB)"
+          placeholder={t.priceThb}
           className="rounded-lg border border-border px-3 py-2 text-sm"
         />
         <select
@@ -81,9 +83,9 @@ export function AddServiceForm() {
           onChange={(e) => setPaymentMode(e.target.value)}
           className="rounded-lg border border-border px-3 py-2 text-sm"
         >
-          <option value="full">Full payment</option>
-          <option value="deposit">Deposit</option>
-          <option value="free">Free</option>
+          <option value="full">{t.fullPayment}</option>
+          <option value="deposit">{t.deposit}</option>
+          <option value="free">{t.free}</option>
         </select>
       </div>
       {paymentMode === "deposit" && (
@@ -92,18 +94,18 @@ export function AddServiceForm() {
           type="number"
           min={0}
           step="0.01"
-          placeholder="Deposit amount (THB)"
+          placeholder={t.depositAmountThb}
           className="rounded-lg border border-border px-3 py-2 text-sm"
         />
       )}
       <label className="text-sm text-ink-secondary">
-        Capacity (seats) — leave blank for a regular 1:1 service
+        {t.capacitySeatsLabel}
         <input
           name="capacity"
           type="number"
           min={2}
           step={1}
-          placeholder="e.g. 10 for a class"
+          placeholder={t.capacityPlaceholder}
           className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
         />
       </label>
@@ -113,7 +115,7 @@ export function AddServiceForm() {
         disabled={pending}
         className="rounded-xl bg-sunburst py-2.5 text-sm font-medium text-ink disabled:opacity-50"
       >
-        {pending ? "Adding..." : "Add service"}
+        {pending ? t.adding : t.addServiceButton}
       </button>
     </form>
   );

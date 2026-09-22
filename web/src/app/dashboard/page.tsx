@@ -70,6 +70,7 @@ export default async function DashboardPage() {
           <NewBookingForm
             services={services}
             staff={staff}
+            locale={locale}
             buttonClassName="rounded-lg bg-sunburst px-5 py-2.5 text-[15px] font-medium text-ink transition-[filter] hover:brightness-95"
           />
         </div>
@@ -79,6 +80,7 @@ export default async function DashboardPage() {
           <NewBookingForm
             services={services}
             staff={staff}
+            locale={locale}
             buttonClassName="w-full rounded-lg bg-sunburst px-4 py-3.5 text-center text-[15px] font-medium text-ink"
           />
           <QuickAddButton

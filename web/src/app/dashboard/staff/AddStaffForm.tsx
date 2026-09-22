@@ -2,8 +2,16 @@
 
 import { useActionState, useState } from "react";
 import { addStaff, type ActionResult } from "./actions";
+import { teamText, type Locale } from "@/lib/i18n";
 
-export function AddStaffForm({ services }: { services: { id: string; name: string }[] }) {
+export function AddStaffForm({
+  services,
+  locale,
+}: {
+  services: { id: string; name: string }[];
+  locale: Locale;
+}) {
+  const t = teamText[locale];
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState<ActionResult | null, FormData>(
     addStaff,
@@ -25,7 +33,7 @@ export function AddStaffForm({ services }: { services: { id: string; name: strin
         onClick={() => setOpen(true)}
         className="rounded-lg bg-sunburst px-4 py-2 text-sm font-medium text-ink transition-[filter] hover:brightness-95"
       >
-        + Add team member
+        {t.addTeamMember}
       </button>
     );
   }
@@ -36,20 +44,20 @@ export function AddStaffForm({ services }: { services: { id: string; name: strin
       className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-5"
     >
       <div className="flex items-center justify-between">
-        <div className="text-sm font-medium text-ink-secondary">Add a team member</div>
+        <div className="text-sm font-medium text-ink-secondary">{t.addTeamMemberTitle}</div>
         <button type="button" onClick={() => setOpen(false)} className="text-xs text-ink-muted hover:text-ink-secondary">
-          Close
+          {t.close}
         </button>
       </div>
       <input
         name="name"
-        placeholder="Name"
+        placeholder={t.name}
         className="rounded-lg border border-border px-3 py-2 text-sm"
       />
 
       {services.length > 0 && (
         <div>
-          <div className="text-sm text-ink-secondary">Can perform</div>
+          <div className="text-sm text-ink-secondary">{t.canPerform}</div>
           <div className="mt-2 flex flex-col gap-2">
             {services.map((s) => (
               <label key={s.id} className="flex items-center gap-2 text-sm">
@@ -67,7 +75,7 @@ export function AddStaffForm({ services }: { services: { id: string; name: strin
         disabled={pending}
         className="rounded-xl bg-sunburst py-2.5 text-sm font-medium text-ink disabled:opacity-50"
       >
-        {pending ? "Adding..." : "Add team member"}
+        {pending ? t.adding : t.addTeamMemberButton}
       </button>
     </form>
   );

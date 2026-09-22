@@ -5,13 +5,15 @@ import { refundBooking } from "./actions";
 import { formatBaht } from "@/lib/money";
 import type { CalendarBooking } from "@/lib/bookings-data";
 import { formatTime } from "./BookingRow";
+import { bookingsText, tRefundQuestion, tFullAmount, tPaidRefunding, type Locale } from "@/lib/i18n";
 
 // Refund is financially consequential, so this is a real two-step flow —
 // choose an amount, then an explicit confirmation naming the customer,
 // booking, and exact amount before anything reaches Stripe — not a single
 // click. Success is only ever shown after Stripe/the server actually
 // confirms it (refundBooking's own ok/error result), never assumed.
-export function RefundButton({ bookingId, b }: { bookingId: string; b: CalendarBooking }) {
+export function RefundButton({ bookingId, b, locale }: { bookingId: string; b: CalendarBooking; locale: Locale }) {
+  const t = bookingsText[locale];
   const [step, setStep] = useState<"closed" | "amount" | "confirm">("closed");
   const [mode, setMode] = useState<"full" | "partial">("full");
   const [amountBaht, setAmountBaht] = useState(String(b.amount / 100));
@@ -45,7 +47,7 @@ export function RefundButton({ bookingId, b }: { bookingId: string; b: CalendarB
           }}
           className="rounded-full border border-border px-3 py-2 text-xs hover:bg-page"
         >
-          Refund
+          {t.refund}
         </button>
         {success && <div className="mt-1 text-xs text-[#1b8a5a]">✓ {success}</div>}
       </div>
@@ -58,11 +60,11 @@ export function RefundButton({ bookingId, b }: { bookingId: string; b: CalendarB
         <div className="flex flex-wrap gap-3">
           <label className="flex items-center gap-1.5">
             <input type="radio" checked={mode === "full"} onChange={() => setMode("full")} />
-            Full ({formatBaht(b.amount)})
+            {tFullAmount(locale, formatBaht(b.amount))}
           </label>
           <label className="flex items-center gap-1.5">
             <input type="radio" checked={mode === "partial"} onChange={() => setMode("partial")} />
-            Partial
+            {t.partial}
           </label>
           {mode === "partial" && (
             <input
@@ -82,10 +84,10 @@ export function RefundButton({ bookingId, b }: { bookingId: string; b: CalendarB
             disabled={!Number.isFinite(refundAmountBaht) || refundAmountBaht <= 0}
             className="rounded-full bg-sunburst px-3 py-1.5 font-medium text-ink disabled:opacity-50"
           >
-            Continue
+            {t.continue}
           </button>
           <button onClick={() => setStep("closed")} className="rounded-full border border-border px-3 py-1.5">
-            Cancel
+            {t.cancel}
           </button>
         </div>
       </div>
@@ -99,19 +101,16 @@ export function RefundButton({ bookingId, b }: { bookingId: string; b: CalendarB
       onClick={() => !isPending && setStep("amount")}
     >
       <div className="w-full max-w-sm rounded-2xl bg-surface p-5 text-sm" onClick={(e) => e.stopPropagation()}>
-        <div className="text-[15px] text-ink">Refund {formatBaht(Math.round(refundAmountBaht * 100))}?</div>
+        <div className="text-[15px] text-ink">{tRefundQuestion(locale, formatBaht(Math.round(refundAmountBaht * 100)))}</div>
         <div className="mt-3 rounded-lg bg-page px-3 py-2 text-ink">
-          <div>{b.customerName ?? "Unnamed customer"}</div>
+          <div>{b.customerName ?? t.unnamedCustomer}</div>
           <div className="text-ink-secondary">{b.serviceName}</div>
           <div className="text-ink-secondary">{formatTime(b.startTime)}</div>
           <div className="text-ink-secondary">
-            {formatBaht(b.amount)} paid · refunding {formatBaht(Math.round(refundAmountBaht * 100))}
+            {tPaidRefunding(locale, formatBaht(b.amount), formatBaht(Math.round(refundAmountBaht * 100)))}
           </div>
         </div>
-        <p className="mt-3 text-ink-secondary">
-          This sends money back to the customer&rsquo;s original payment method through Stripe.
-          It cannot be undone from Velure.
-        </p>
+        <p className="mt-3 text-ink-secondary">{t.refundNotice}</p>
         {error && <div className="mt-2 text-[#d03b3b]">{error}</div>}
         <div className="mt-4 flex justify-end gap-2">
           <button
@@ -120,7 +119,7 @@ export function RefundButton({ bookingId, b }: { bookingId: string; b: CalendarB
             disabled={isPending}
             className="rounded-full border border-border px-4 py-2 text-sm hover:bg-page disabled:opacity-50"
           >
-            Back
+            {t.back}
           </button>
           <button
             type="button"
@@ -128,7 +127,7 @@ export function RefundButton({ bookingId, b }: { bookingId: string; b: CalendarB
             disabled={isPending}
             className="rounded-full bg-[#d03b3b] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
           >
-            {isPending ? "Refunding…" : "Confirm refund"}
+            {isPending ? t.refunding : t.confirmRefund}
           </button>
         </div>
       </div>

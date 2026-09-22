@@ -2,28 +2,31 @@
 
 import { useActionState } from "react";
 import { createClassSession, type ActionResult } from "./actions";
+import { classesText, type Locale } from "@/lib/i18n";
 
 type Option = { id: string; name: string };
-
-const WEEKDAYS = [
-  { value: "0", label: "Sun" },
-  { value: "1", label: "Mon" },
-  { value: "2", label: "Tue" },
-  { value: "3", label: "Wed" },
-  { value: "4", label: "Thu" },
-  { value: "5", label: "Fri" },
-  { value: "6", label: "Sat" },
-];
 
 export function CreateSessionForm({
   services,
   staff,
   resources,
+  locale,
 }: {
   services: Option[];
   staff: Option[];
   resources: Option[];
+  locale: Locale;
 }) {
+  const t = classesText[locale];
+  const WEEKDAYS = [
+    { value: "0", label: t.sun },
+    { value: "1", label: t.mon },
+    { value: "2", label: t.tue },
+    { value: "3", label: t.wed },
+    { value: "4", label: t.thu },
+    { value: "5", label: t.fri },
+    { value: "6", label: t.sat },
+  ];
   const [state, formAction, pending] = useActionState<ActionResult | null, FormData>(
     createClassSession,
     null
@@ -57,7 +60,7 @@ export function CreateSessionForm({
 
       <details className="rounded-lg border border-border px-3 py-2">
         <summary className="cursor-pointer text-sm text-ink-secondary">
-          Repeat weekly (optional)
+          {t.repeatWeekly}
         </summary>
         <div className="mt-3 flex flex-col gap-3">
           <div className="flex flex-wrap gap-2">
@@ -72,7 +75,7 @@ export function CreateSessionForm({
             ))}
           </div>
           <div>
-            <label className="text-xs text-ink-muted">Repeat until</label>
+            <label className="text-xs text-ink-muted">{t.repeatUntil}</label>
             <input
               type="date"
               name="repeatUntil"
@@ -80,15 +83,14 @@ export function CreateSessionForm({
             />
           </div>
           <p className="text-xs text-ink-muted">
-            Creates one session on every checked day of the week between the start date above and
-            &quot;Repeat until&quot;. Leave this closed for a single one-off session.
+            {t.repeatHint}
           </p>
         </div>
       </details>
 
       {resources.length > 0 && (
         <select name="resourceId" className="rounded-lg border border-border px-3 py-2 text-sm" defaultValue="">
-          <option value="">No room / studio</option>
+          <option value="">{t.noRoom}</option>
           {resources.map((r) => (
             <option key={r.id} value={r.id}>
               {r.name}
@@ -103,10 +105,10 @@ export function CreateSessionForm({
         disabled={pending || staff.length === 0}
         className="self-start rounded-xl bg-sunburst px-4 py-2.5 text-sm font-medium text-ink disabled:opacity-50"
       >
-        {pending ? "Scheduling..." : "Schedule session"}
+        {pending ? t.scheduling : t.scheduleSessionButton}
       </button>
       {staff.length === 0 && (
-        <div className="text-sm text-ink-muted">Add a team member first on the Team page.</div>
+        <div className="text-sm text-ink-muted">{t.addTeamMemberFirst}</div>
       )}
     </form>
   );

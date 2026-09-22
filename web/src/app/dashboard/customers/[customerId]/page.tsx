@@ -7,12 +7,14 @@ import { NotesForm } from "./NotesForm";
 import { TagsForm } from "./TagsForm";
 import { formatBaht } from "@/lib/money";
 import { PageShell, Surface } from "@/components/dashboard/PageShell";
+import { customersText, type Locale } from "@/lib/i18n";
 
-function formatLastVisit(iso: string | null): string {
-  if (!iso) return "Never";
-  return new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Bangkok", dateStyle: "medium" }).format(
-    new Date(iso)
-  );
+function formatLastVisit(iso: string | null, locale: Locale, never: string): string {
+  if (!iso) return never;
+  return new Intl.DateTimeFormat(locale === "th" ? "th-TH" : "en-US", {
+    timeZone: "Asia/Bangkok",
+    dateStyle: "medium",
+  }).format(new Date(iso));
 }
 
 export default async function CustomerDetailPage({
@@ -21,6 +23,8 @@ export default async function CustomerDetailPage({
   params: Promise<{ customerId: string }>;
 }) {
   const owner = await requireOwner();
+  const locale = owner.locale;
+  const t = customersText[locale];
   const { customerId } = await params;
 
   const customer = await getCustomer(owner.businessId, customerId);
@@ -38,63 +42,63 @@ export default async function CustomerDetailPage({
   return (
     <PageShell width="standard">
       <Link href="/dashboard/customers" className="text-sm text-ink-secondary hover:text-ink">
-        ← Customers
+        {t.backToCustomers}
       </Link>
 
       <div className="mt-3 flex flex-col gap-1 border-b border-border pb-5">
         <h1 className="text-[26px] font-normal tracking-tight text-ink sm:text-[28px]">{customer.name}</h1>
         <div className="text-sm text-ink-secondary">
-          {[customer.phone, customer.email].filter(Boolean).join(" · ") || "No contact info on file"}
+          {[customer.phone, customer.email].filter(Boolean).join(" · ") || t.noContactInfo}
         </div>
       </div>
 
       <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Surface className="p-4">
-          <div className="text-xs text-ink-muted">Total spend</div>
+          <div className="text-xs text-ink-muted">{t.totalSpend}</div>
           <div className="mt-1 text-lg font-semibold">{formatBaht(customer.totalSpend)}</div>
         </Surface>
         <Surface className="p-4">
-          <div className="text-xs text-ink-muted">Visits</div>
+          <div className="text-xs text-ink-muted">{t.visits}</div>
           <div className="mt-1 text-lg font-semibold">{customer.visitCount}</div>
         </Surface>
         <Surface className="p-4">
-          <div className="text-xs text-ink-muted">No-shows</div>
+          <div className="text-xs text-ink-muted">{t.noShows}</div>
           <div className="mt-1 text-lg font-semibold">{customer.noShowCount}</div>
         </Surface>
         <Surface className="p-4">
-          <div className="text-xs text-ink-muted">Last visit</div>
-          <div className="mt-1 text-lg font-semibold">{formatLastVisit(customer.lastVisit)}</div>
+          <div className="text-xs text-ink-muted">{t.lastVisit}</div>
+          <div className="mt-1 text-lg font-semibold">{formatLastVisit(customer.lastVisit, locale, t.never)}</div>
         </Surface>
       </div>
 
       <div className="mt-6 grid max-w-[640px] grid-cols-1 gap-6 sm:grid-cols-2">
         <div>
-          <div className="text-[13.5px] font-semibold uppercase tracking-wide text-ink">Notes</div>
+          <div className="text-[13.5px] font-semibold uppercase tracking-wide text-ink">{t.notes}</div>
           <Surface className="mt-2 p-4">
-            <NotesForm customerId={customer.id} notes={customer.notes ?? ""} />
+            <NotesForm customerId={customer.id} notes={customer.notes ?? ""} locale={locale} />
           </Surface>
         </div>
         <div>
-          <div className="text-[13.5px] font-semibold uppercase tracking-wide text-ink">Tags</div>
+          <div className="text-[13.5px] font-semibold uppercase tracking-wide text-ink">{t.tags}</div>
           <Surface className="mt-2 p-4">
-            <TagsForm customerId={customer.id} tags={customer.tags} />
+            <TagsForm customerId={customer.id} tags={customer.tags} locale={locale} />
           </Surface>
         </div>
       </div>
 
       <div className="mt-8">
         <div className="text-[13.5px] font-semibold uppercase tracking-wide text-ink">
-          Upcoming ({upcoming.length})
+          {t.upcoming} ({upcoming.length})
         </div>
         <div className="mt-2">
           {upcoming.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-border p-6 text-center text-sm text-ink-muted">
-              No upcoming bookings.
+              {t.noUpcomingBookings}
             </div>
           ) : (
             <BookingList>
               {upcoming.map((b) => (
-                <BookingRow key={b.id} b={b} />
+                <BookingRow key={b.id} b={b} locale={locale} />
               ))}
             </BookingList>
           )}
@@ -103,17 +107,17 @@ export default async function CustomerDetailPage({
 
       <div className="mt-8">
         <div className="text-[13.5px] font-semibold uppercase tracking-wide text-ink">
-          History ({past.length})
+          {t.history} ({past.length})
         </div>
         <div className="mt-2">
           {past.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-border p-6 text-center text-sm text-ink-muted">
-              No past bookings yet.
+              {t.noPastBookings}
             </div>
           ) : (
             <BookingList>
               {past.map((b) => (
-                <BookingRow key={b.id} b={b} />
+                <BookingRow key={b.id} b={b} locale={locale} />
               ))}
             </BookingList>
           )}

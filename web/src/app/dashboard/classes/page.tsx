@@ -5,9 +5,10 @@ import { CreateSessionForm } from "./CreateSessionForm";
 import { cancelClassSession, deleteClassSession, updateClassSessionNote } from "./actions";
 import { PageShell, PageHeader } from "@/components/dashboard/PageShell";
 import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
+import { classesText, tCancelSessionDesc, type Locale } from "@/lib/i18n";
 
-function formatTime(iso: string): string {
-  return new Intl.DateTimeFormat("en-US", {
+function formatTime(iso: string, locale: Locale): string {
+  return new Intl.DateTimeFormat(locale === "th" ? "th-TH" : "en-US", {
     timeZone: "Asia/Bangkok",
     dateStyle: "medium",
     timeStyle: "short",
@@ -16,6 +17,8 @@ function formatTime(iso: string): string {
 
 export default async function ClassesPage() {
   const owner = await requireOwner();
+  const locale = owner.locale;
+  const t = classesText[locale];
 
   const { sessions, classServices, staff, resources } = await withBusinessContext(
     owner.businessId,
@@ -55,23 +58,22 @@ export default async function ClassesPage() {
     <PageShell width="standard">
       <div className="border-b border-border pb-5">
         <PageHeader
-          title="Classes"
-          description="Scheduled sessions for your multi-seat services — customers book a seat, up to capacity."
+          title={t.title}
+          description={t.description}
         />
       </div>
 
       {!hasClassServices ? (
         <div className="mt-6 flex flex-col items-start gap-3 rounded-2xl border border-border bg-surface p-8">
-          <div className="text-[15px] text-ink">Classes aren&rsquo;t set up yet</div>
+          <div className="text-[15px] text-ink">{t.notSetUpTitle}</div>
           <p className="max-w-md text-sm text-ink-secondary">
-            Set a service&apos;s capacity to 2 or more on the Services page to turn it into a
-            class, then come back here to schedule sessions for it.
+            {t.notSetUpDesc}
           </p>
           <Link
             href="/dashboard/services"
             className="rounded-lg bg-sunburst px-4 py-2 text-sm font-medium text-ink transition-[filter] hover:brightness-95"
           >
-            Go to Services
+            {t.goToServices}
           </Link>
         </div>
       ) : (
@@ -79,7 +81,7 @@ export default async function ClassesPage() {
           <div className="mt-6 flex flex-col gap-3">
             {sessions.length === 0 && (
               <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-ink-muted">
-                No upcoming sessions yet — schedule one below.
+                {t.noUpcomingSessions}
               </div>
             )}
             {sessions.map((s) => (
@@ -101,24 +103,24 @@ export default async function ClassesPage() {
                   {s.service_name}
                 </div>
                 <div className="mt-1 text-sm text-ink-muted">
-                  {formatTime(s.start_time)} · {s.staff_name}
+                  {formatTime(s.start_time, locale)} · {s.staff_name}
                   {s.resource_name && <> · {s.resource_name}</>}
                 </div>
                 {s.owner_note && <div className="mt-1 text-sm text-[#a8681c]">{s.owner_note}</div>}
               </div>
               <div className="flex shrink-0 items-center justify-between gap-4 sm:justify-end">
                 <div className="text-sm text-ink-secondary">
-                  {s.seats_booked} / {s.capacity} booked
+                  {s.seats_booked} / {s.capacity} {t.booked}
                 </div>
                 {s.seats_booked > 0 && (
                   <ConfirmSubmitButton
                     action={cancelClassSession}
                     hiddenFields={{ sessionId: s.id }}
-                    label="Cancel session"
-                    pendingLabel="Cancelling…"
-                    confirmTitle="Cancel this session?"
-                    confirmDescription={`This cancels all ${s.seats_booked} booked attendee${s.seats_booked === 1 ? "" : "s"} and emails each of them — the session stays on the schedule with its history intact.`}
-                    confirmLabel="Cancel session"
+                    label={t.cancelSession}
+                    pendingLabel={t.cancelling}
+                    confirmTitle={t.cancelSessionTitle}
+                    confirmDescription={tCancelSessionDesc(locale, s.seats_booked)}
+                    confirmLabel={t.cancelSession}
                     danger
                     buttonClassName="rounded-full border border-border px-3 py-1.5 text-sm text-ink-secondary hover:bg-page"
                   />
@@ -126,11 +128,11 @@ export default async function ClassesPage() {
                 <ConfirmSubmitButton
                   action={deleteClassSession}
                   hiddenFields={{ sessionId: s.id }}
-                  label="Remove"
-                  pendingLabel="Removing…"
-                  confirmTitle="Remove this session?"
-                  confirmDescription="This removes the session from the schedule. Sessions with any booking history — including past or cancelled bookings — can't be removed, to keep existing reports accurate."
-                  confirmLabel="Remove"
+                  label={t.removeSession}
+                  pendingLabel={t.removing}
+                  confirmTitle={t.removeSessionTitle}
+                  confirmDescription={t.removeSessionDesc}
+                  confirmLabel={t.removeSession}
                   danger
                   buttonClassName="rounded-full border border-border px-3 py-1.5 text-sm text-ink-secondary hover:bg-page"
                 />
@@ -139,7 +141,7 @@ export default async function ClassesPage() {
 
             <details className="mt-3">
               <summary className="cursor-pointer text-xs text-ink-muted hover:text-ink-secondary">
-                Note &amp; flag
+                {t.noteAndFlag}
               </summary>
               <form
                 action={updateClassSessionNote}
@@ -149,18 +151,18 @@ export default async function ClassesPage() {
                 <input
                   name="note"
                   defaultValue={s.owner_note ?? ""}
-                  placeholder="e.g. VIP attendee, needs extra care"
+                  placeholder={t.notePlaceholder}
                   className="flex-1 rounded-lg border border-border px-3 py-1.5 text-sm"
                 />
                 <label className="flex items-center gap-1.5 text-sm text-ink-secondary">
                   <input type="checkbox" name="flagged" defaultChecked={s.is_flagged} />
-                  Flag
+                  {t.flag}
                 </label>
                 <button
                   type="submit"
                   className="rounded-lg border border-border px-3 py-1.5 text-xs hover:bg-page"
                 >
-                  Save
+                  {t.save}
                 </button>
               </form>
             </details>
@@ -170,10 +172,10 @@ export default async function ClassesPage() {
 
           <div className="mt-8">
             <h2 className="text-[13.5px] font-semibold uppercase tracking-wide text-ink">
-              Schedule a session
+              {t.scheduleSession}
             </h2>
             <div className="mt-2">
-              <CreateSessionForm services={classServices} staff={staff} resources={resources} />
+              <CreateSessionForm services={classServices} staff={staff} resources={resources} locale={locale} />
             </div>
           </div>
         </>

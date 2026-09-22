@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { CalendarBooking, CalendarClassSession } from "@/lib/bookings-data";
 import { formatTimeOnly } from "../bookings/BookingRow";
+import { calendarText, type Locale } from "@/lib/i18n";
 
 // Surfaces anything an owner flagged or left a note on that's still ahead
 // of *real* wall-clock now — not relative to whatever date is being viewed
@@ -8,10 +9,13 @@ import { formatTimeOnly } from "../bookings/BookingRow";
 export function RemindersBanner({
   bookings,
   classSessions,
+  locale,
 }: {
   bookings: CalendarBooking[];
   classSessions: CalendarClassSession[];
+  locale: Locale;
 }) {
+  const t = calendarText[locale];
   const now = new Date().getTime();
   type Item = { key: string; time: string; label: string; note: string | null; anchor: string };
 
@@ -21,7 +25,7 @@ export function RemindersBanner({
       .map((b): Item => ({
         key: `b-${b.id}`,
         time: b.startTime,
-        label: `${b.serviceName} · ${b.customerName ?? "Unnamed"}`,
+        label: `${b.serviceName} · ${b.customerName ?? t.unnamedCustomer}`,
         note: b.ownerNote,
         anchor: `#booking-${b.id}`,
       })),
@@ -30,7 +34,7 @@ export function RemindersBanner({
       .map((s): Item => ({
         key: `c-${s.id}`,
         time: s.startTime,
-        label: `${s.serviceName} · class`,
+        label: `${s.serviceName} · ${t.class}`,
         note: s.ownerNote,
         anchor: `#class-${s.id}`,
       })),
@@ -40,7 +44,7 @@ export function RemindersBanner({
 
   return (
     <div className="mb-4 flex flex-col gap-2 rounded-2xl border border-[#a8681c]/30 bg-[#fdf3e6] p-4">
-      <div className="text-xs font-medium text-[#a8681c]">Reminders</div>
+      <div className="text-xs font-medium text-[#a8681c]">{t.reminders}</div>
       {items.map((item) => (
         <Link
           key={item.key}

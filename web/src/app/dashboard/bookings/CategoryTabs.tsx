@@ -1,23 +1,24 @@
 import Link from "next/link";
+import { bookingsText, type Locale } from "@/lib/i18n";
 
 // "All" here means "everything still relevant to act on" — cancelled/
 // no-show/failed/refunded bookings are deliberately excluded from it and
 // live behind their own pill instead, so the default list stops growing
 // forever as a business accumulates history. Matches ListView's own
 // ACTIVE_STATUSES filter in page.tsx.
-const CATEGORIES = [
-  { key: "active", label: "All", status: null as string | null },
-  { key: "paid", label: "Paid", status: "CONFIRMED" },
-  { key: "unpaid", label: "Unpaid", status: "TEMPORARY_HOLD,PAYMENT_PENDING" },
-  { key: "completed", label: "Completed", status: "COMPLETED" },
-  {
-    key: "cancelled",
-    label: "Cancelled",
-    status: "CANCELLED,NO_SHOW,PAYMENT_FAILED,EXPIRED,REFUNDED,PARTIALLY_REFUNDED",
-  },
-];
-
-export function CategoryTabs({ activeStatus }: { activeStatus: string | null }) {
+export function CategoryTabs({ activeStatus, locale }: { activeStatus: string | null; locale: Locale }) {
+  const t = bookingsText[locale];
+  const CATEGORIES = [
+    { key: "active", label: t.catAll, status: null as string | null },
+    { key: "paid", label: t.catPaid, status: "CONFIRMED" },
+    { key: "unpaid", label: t.catUnpaid, status: "TEMPORARY_HOLD,PAYMENT_PENDING" },
+    { key: "completed", label: t.catCompleted, status: "COMPLETED" },
+    {
+      key: "cancelled",
+      label: t.catCancelled,
+      status: "CANCELLED,NO_SHOW,PAYMENT_FAILED,EXPIRED,REFUNDED,PARTIALLY_REFUNDED",
+    },
+  ];
   return (
     <div className="flex flex-wrap gap-1.5">
       {CATEGORIES.map((cat) => {

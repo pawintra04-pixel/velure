@@ -4,6 +4,7 @@ import { statusMeta } from "@/lib/booking-status";
 import { updateBookingStatus, updateBookingNote } from "./actions";
 import { RefundButton } from "./RefundButton";
 import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
+import { bookingsText, tPaidLine, type Locale } from "@/lib/i18n";
 
 // Kept as a className map (not the shared statusMeta color) for WeekView's
 // small filled chips specifically — a background tint needs a Tailwind
@@ -58,16 +59,12 @@ function formatDateTimeCompact(iso: string): string {
 // The same real-detail summary every consequential confirmation for this
 // booking shows — who, what, when, and its current payment state — so a
 // confirmation dialog never reduces to a bare "Are you sure?".
-function BookingSummary({ b }: { b: CalendarBooking }) {
-  const paidLine =
-    b.amount <= 0
-      ? "Free booking"
-      : b.hasPayment
-        ? `${formatBaht(b.amount)} paid`
-        : `${formatBaht(b.amount)} not yet paid`;
+function BookingSummary({ b, locale }: { b: CalendarBooking; locale: Locale }) {
+  const t = bookingsText[locale];
+  const paidLine = tPaidLine(locale, b.amount, formatBaht(b.amount), b.hasPayment);
   return (
     <div className="rounded-lg bg-page px-3 py-2 text-sm text-ink">
-      <div>{b.customerName ?? "Unnamed customer"}</div>
+      <div>{b.customerName ?? t.unnamedCustomer}</div>
       <div className="text-ink-secondary">{b.serviceName}</div>
       <div className="text-ink-secondary">{formatTime(b.startTime)}</div>
       <div className="text-ink-secondary">{paidLine}</div>
@@ -75,8 +72,8 @@ function BookingSummary({ b }: { b: CalendarBooking }) {
   );
 }
 
-function StatusDot({ status }: { status: string }) {
-  const meta = statusMeta(status);
+function StatusDot({ status, locale }: { status: string; locale: Locale }) {
+  const meta = statusMeta(status, locale);
   return (
     <span className="inline-flex shrink-0 items-center gap-1.5 text-[13px]" style={{ color: meta.color }}>
       <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: meta.color }} />
@@ -95,7 +92,8 @@ function StatusDot({ status }: { status: string }) {
 // horizontally on narrow screens. Renders with no border/rounded/bg of its
 // own — the list it's placed in owns one shared container + thin dividers,
 // so N bookings read as one list, not N cards.
-export function BookingRow({ b, compact = false }: { b: CalendarBooking; compact?: boolean }) {
+export function BookingRow({ b, locale, compact = false }: { b: CalendarBooking; locale: Locale; compact?: boolean }) {
+  const t = bookingsText[locale];
   return (
     <details
       id={`booking-${b.id}`}
@@ -107,20 +105,20 @@ export function BookingRow({ b, compact = false }: { b: CalendarBooking; compact
             {compact ? formatTimeOnly(b.startTime) : formatDateTimeCompact(b.startTime)}
           </span>
           <span className="sm:hidden">
-            <StatusDot status={b.status} />
+            <StatusDot status={b.status} locale={locale} />
           </span>
         </div>
 
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5 truncate text-[14.5px] text-ink">
             {b.isFlagged && <span title="Flagged for special attention">📌</span>}
-            {b.customerName ?? "Unnamed customer"}
+            {b.customerName ?? t.unnamedCustomer}
           </div>
           <div className="truncate text-[13px] text-ink-muted">
             {b.serviceName} · {b.staffName} · {formatBaht(b.amount)}
             {b.paymentMethod === "cash" && b.status === "CONFIRMED" && (
               <span className="ml-1.5 rounded-full bg-[#fdf3e6] px-2 py-0.5 text-[11px] text-[#a8681c]">
-                💵 In person
+                💵 {t.inPerson}
               </span>
             )}
           </div>
@@ -128,7 +126,7 @@ export function BookingRow({ b, compact = false }: { b: CalendarBooking; compact
         </div>
 
         <span className="hidden shrink-0 sm:block sm:w-40">
-          <StatusDot status={b.status} />
+          <StatusDot status={b.status} locale={locale} />
         </span>
 
         <span
@@ -146,32 +144,29 @@ export function BookingRow({ b, compact = false }: { b: CalendarBooking; compact
               <ConfirmSubmitButton
                 action={updateBookingStatus}
                 hiddenFields={{ bookingId: b.id, nextStatus: "COMPLETED" }}
-                label="Complete"
-                confirmTitle="Mark this booking complete?"
+                label={t.complete}
+                confirmTitle={t.markCompleteTitle}
                 confirmDescription={
                   <>
-                    <BookingSummary b={b} />
-                    <p className="mt-3">This records the appointment as done.</p>
+                    <BookingSummary b={b} locale={locale} />
+                    <p className="mt-3">{t.markCompleteDesc}</p>
                   </>
                 }
-                confirmLabel="Mark complete"
+                confirmLabel={t.markComplete}
                 buttonClassName="rounded-full border border-border px-3 py-2 text-xs hover:bg-page"
               />
               <ConfirmSubmitButton
                 action={updateBookingStatus}
                 hiddenFields={{ bookingId: b.id, nextStatus: "NO_SHOW" }}
-                label="No-show"
-                confirmTitle="Mark this booking as a no-show?"
+                label={t.noShow}
+                confirmTitle={t.markNoShowTitle}
                 confirmDescription={
                   <>
-                    <BookingSummary b={b} />
-                    <p className="mt-3">
-                      This records that the customer didn&rsquo;t turn up. It does not free the
-                      time slot or issue a refund.
-                    </p>
+                    <BookingSummary b={b} locale={locale} />
+                    <p className="mt-3">{t.markNoShowDesc}</p>
                   </>
                 }
-                confirmLabel="Mark no-show"
+                confirmLabel={t.markNoShow}
                 buttonClassName="rounded-full border border-border px-3 py-2 text-xs hover:bg-page"
               />
             </>
@@ -180,50 +175,48 @@ export function BookingRow({ b, compact = false }: { b: CalendarBooking; compact
             <ConfirmSubmitButton
               action={updateBookingStatus}
               hiddenFields={{ bookingId: b.id, nextStatus: "CANCELLED" }}
-              label="Cancel"
-              confirmTitle="Cancel this booking?"
+              label={t.cancel}
+              confirmTitle={t.cancelTitle}
               confirmDescription={
                 <>
-                  <BookingSummary b={b} />
+                  <BookingSummary b={b} locale={locale} />
                   <p className="mt-3">
-                    Cancelling will free this time slot.
-                    {b.hasPayment && b.amount > 0 && (
-                      <> Payment will <strong>not</strong> automatically be refunded.</>
-                    )}
+                    {t.cancelDescBase}
+                    {b.hasPayment && b.amount > 0 && <strong>{t.cancelDescPayment}</strong>}
                   </p>
                 </>
               }
-              confirmLabel="Cancel booking"
-              cancelLabel="Keep booking"
+              confirmLabel={t.cancelBooking}
+              cancelLabel={t.keepBooking}
               danger
               buttonClassName="rounded-full border border-border px-3 py-2 text-xs hover:bg-page"
             />
           )}
           {b.hasPayment && b.amount > 0 && REFUNDABLE_STATUSES.includes(b.status) && (
-            <RefundButton bookingId={b.id} b={b} />
+            <RefundButton bookingId={b.id} b={b} locale={locale} />
           )}
         </div>
 
         <ConfirmSubmitButton
           action={updateBookingNote}
           hiddenFields={{ bookingId: b.id }}
-          label="Save"
+          label={t.save}
           requireConfirm={false}
           confirmTitle=""
           confirmDescription={null}
-          confirmLabel="Save"
+          confirmLabel={t.save}
           buttonClassName="rounded-full border border-border px-3 py-1.5 text-xs hover:bg-page shrink-0"
           formClassName="flex flex-col gap-2 border-t border-border pt-3 sm:flex-row sm:items-center"
         >
           <input
             name="note"
             defaultValue={b.ownerNote ?? ""}
-            placeholder="Note — e.g. VIP, needs extra care"
+            placeholder={t.notePlaceholder}
             className="flex-1 rounded-lg border border-border px-3 py-2 text-sm"
           />
           <label className="flex items-center gap-1.5 text-sm text-ink-secondary">
             <input type="checkbox" name="flagged" defaultChecked={b.isFlagged} />
-            Flag
+            {t.flag}
           </label>
         </ConfirmSubmitButton>
       </div>

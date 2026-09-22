@@ -2,9 +2,19 @@ import Link from "next/link";
 import type { CalendarBooking } from "@/lib/bookings-data";
 import { addDays } from "@/lib/bookings-data";
 import { BookingRow, BookingList } from "./BookingRow";
+import { bookingsText, type Locale } from "@/lib/i18n";
 
-export function DayView({ date, bookings }: { date: string; bookings: CalendarBooking[] }) {
-  const label = new Intl.DateTimeFormat("en-US", {
+export function DayView({
+  date,
+  bookings,
+  locale,
+}: {
+  date: string;
+  bookings: CalendarBooking[];
+  locale: Locale;
+}) {
+  const t = bookingsText[locale];
+  const label = new Intl.DateTimeFormat(locale === "th" ? "th-TH" : "en-US", {
     timeZone: "Asia/Bangkok",
     weekday: "long",
     day: "numeric",
@@ -21,13 +31,13 @@ export function DayView({ date, bookings }: { date: string; bookings: CalendarBo
             href={`/dashboard/bookings?view=day&date=${addDays(date, -1)}`}
             className="rounded-full border border-border px-3 py-1.5 text-sm hover:bg-page"
           >
-            ← Prev
+            {t.prev}
           </Link>
           <Link
             href={`/dashboard/bookings?view=day&date=${addDays(date, 1)}`}
             className="rounded-full border border-border px-3 py-1.5 text-sm hover:bg-page"
           >
-            Next →
+            {t.next}
           </Link>
         </div>
       </div>
@@ -35,12 +45,12 @@ export function DayView({ date, bookings }: { date: string; bookings: CalendarBo
       <div className="mt-4">
         {bookings.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-ink-muted">
-            No bookings on this day.
+            {t.noBookingsDay}
           </div>
         ) : (
           <BookingList>
             {bookings.map((b) => (
-              <BookingRow key={b.id} b={b} />
+              <BookingRow key={b.id} b={b} locale={locale} />
             ))}
           </BookingList>
         )}

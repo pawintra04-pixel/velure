@@ -19,6 +19,7 @@ import { CalendarViewTabs } from "./CalendarViewTabs";
 import { DayDetailList } from "./DayDetailList";
 import { RemindersBanner } from "./RemindersBanner";
 import { PageShell, PageHeader } from "@/components/dashboard/PageShell";
+import { calendarText, type Locale } from "@/lib/i18n";
 
 function toISO(d: Date): string {
   return d.toISOString();
@@ -43,6 +44,8 @@ export default async function CalendarPage({
   searchParams: Promise<{ view?: string; date?: string }>;
 }) {
   const owner = await requireOwner();
+  const locale = owner.locale;
+  const t = calendarText[locale];
   const { view = "day", date = todayISOInBangkok() } = await searchParams;
 
   const { staff, services } = await withBusinessContext(owner.businessId, async (c) => {
@@ -59,14 +62,15 @@ export default async function CalendarPage({
     <PageShell width="wide">
       <div className="border-b border-border pb-5">
         <PageHeader
-          title="Calendar"
-          description="Your team's day, week, and month, side by side."
+          title={t.title}
+          description={t.description}
           actions={
             <>
-              <CalendarViewTabs active={view} date={date} />
+              <CalendarViewTabs active={view} date={date} locale={locale} />
               <NewBookingForm
                 services={services}
                 staff={staff}
+                locale={locale}
                 buttonClassName="rounded-lg bg-sunburst px-4 py-2 text-sm font-medium text-ink transition-[filter] hover:brightness-95"
               />
             </>
@@ -78,6 +82,7 @@ export default async function CalendarPage({
         {view === "week" && (
           <WeekView
             weekStart={startOfWeek(date)}
+            locale={locale}
             basePath="/dashboard/calendar"
             bookings={await getBookingsInRange(
               owner.businessId,
@@ -89,6 +94,7 @@ export default async function CalendarPage({
         {view === "month" && (
           <MonthView
             monthStart={startOfMonth(date)}
+            locale={locale}
             basePath="/dashboard/calendar"
             bookings={await getBookingsInRange(
               owner.businessId,
@@ -97,7 +103,7 @@ export default async function CalendarPage({
             )}
           />
         )}
-        {view === "day" && <DayView businessId={owner.businessId} date={date} staff={staff} />}
+        {view === "day" && <DayView businessId={owner.businessId} date={date} staff={staff} locale={locale} />}
       </div>
     </PageShell>
   );
@@ -107,11 +113,14 @@ async function DayView({
   businessId,
   date,
   staff,
+  locale,
 }: {
   businessId: string;
   date: string;
   staff: { id: string; name: string }[];
+  locale: Locale;
 }) {
+  const t = calendarText[locale];
   const dow = dayOfWeek(date);
   const dayStart = toISO(bangkokMidnight(date));
   const dayEnd = toISO(bangkokMidnight(addDays(date, 1)));
@@ -142,7 +151,7 @@ async function DayView({
     (b) => !b.classSessionId && !HIDDEN_STATUSES.includes(b.status)
   );
 
-  const label = new Intl.DateTimeFormat("en-US", {
+  const label = new Intl.DateTimeFormat(locale === "th" ? "th-TH" : "en-US", {
     timeZone: "Asia/Bangkok",
     weekday: "long",
     day: "numeric",
@@ -159,25 +168,25 @@ async function DayView({
             href={`/dashboard/calendar?date=${todayISOInBangkok()}`}
             className="rounded-full border border-border px-3 py-1.5 text-sm hover:bg-page"
           >
-            Today
+            {t.today}
           </Link>
           <Link
             href={`/dashboard/calendar?date=${addDays(date, -1)}`}
             className="rounded-full border border-border px-3 py-1.5 text-sm hover:bg-page"
           >
-            ← Prev
+            {t.prev}
           </Link>
           <Link
             href={`/dashboard/calendar?date=${addDays(date, 1)}`}
             className="rounded-full border border-border px-3 py-1.5 text-sm hover:bg-page"
           >
-            Next →
+            {t.next}
           </Link>
         </div>
       </div>
 
       <div className="mt-4">
-        <RemindersBanner bookings={bookings} classSessions={classSessions} />
+        <RemindersBanner bookings={bookings} classSessions={classSessions} locale={locale} />
 
         <CalendarGrid
           dateISO={date}
@@ -188,9 +197,10 @@ async function DayView({
           allBookings={bookings}
           classSessions={classSessions}
           blocks={blocks}
+          locale={locale}
         />
 
-        <DayDetailList bookings={bookings} classSessions={classSessions} />
+        <DayDetailList bookings={bookings} classSessions={classSessions} locale={locale} />
       </div>
     </>
   );

@@ -3,8 +3,10 @@ import type { CalendarBooking } from "@/lib/bookings-data";
 import { addDays, addMonths, startOfWeek } from "@/lib/bookings-data";
 import { formatTimeOnly } from "./BookingRow";
 import { statusMeta } from "@/lib/booking-status";
+import { bookingsText, tMoreCount, type Locale } from "@/lib/i18n";
 
-const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const WEEKDAY_LABELS_EN = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const WEEKDAY_LABELS_TH = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];
 const MAX_VISIBLE_PER_DAY = 3;
 
 function dateKeyInBangkok(iso: string): string {
@@ -14,12 +16,16 @@ function dateKeyInBangkok(iso: string): string {
 export function MonthView({
   monthStart,
   bookings,
+  locale,
   basePath = "/dashboard/bookings",
 }: {
   monthStart: string; // "YYYY-MM-01"
   bookings: CalendarBooking[];
+  locale: Locale;
   basePath?: string;
 }) {
+  const t = bookingsText[locale];
+  const weekdayLabels = locale === "th" ? WEEKDAY_LABELS_TH : WEEKDAY_LABELS_EN;
   const byDay = new Map<string, CalendarBooking[]>();
   for (const b of bookings) {
     const key = dateKeyInBangkok(b.startTime);
@@ -28,7 +34,7 @@ export function MonthView({
   }
 
   const gridStart = startOfWeek(monthStart);
-  const monthLabel = new Intl.DateTimeFormat("en-US", {
+  const monthLabel = new Intl.DateTimeFormat(locale === "th" ? "th-TH" : "en-US", {
     timeZone: "Asia/Bangkok",
     month: "long",
     year: "numeric",
@@ -46,19 +52,19 @@ export function MonthView({
             href={`${basePath}?view=month&date=${addMonths(monthStart, -1)}`}
             className="rounded-full border border-border px-3 py-1.5 text-sm hover:bg-page"
           >
-            ← Prev
+            {t.prev}
           </Link>
           <Link
             href={`${basePath}?view=month&date=${addMonths(monthStart, 1)}`}
             className="rounded-full border border-border px-3 py-1.5 text-sm hover:bg-page"
           >
-            Next →
+            {t.next}
           </Link>
         </div>
       </div>
 
       <div className="mt-4 grid grid-cols-7 gap-px overflow-hidden rounded-2xl border border-border bg-border text-xs">
-        {WEEKDAY_LABELS.map((w) => (
+        {weekdayLabels.map((w) => (
           <div key={w} className="bg-page px-2 py-1.5 text-center font-medium text-ink-secondary">
             {w}
           </div>
@@ -85,7 +91,7 @@ export function MonthView({
                     <span
                       key={b.id}
                       className="h-1.5 w-1.5 shrink-0 rounded-full"
-                      style={{ background: b.isFlagged ? "#a8681c" : statusMeta(b.status).color }}
+                      style={{ background: b.isFlagged ? "#a8681c" : statusMeta(b.status, locale).color }}
                     />
                   ))}
                   {dayBookings.length > 6 && (
@@ -97,7 +103,7 @@ export function MonthView({
               {/* Desktop/tablet: real detail, enough width to read it. */}
               <div className="hidden sm:flex sm:flex-col sm:gap-1">
                 {dayBookings.slice(0, MAX_VISIBLE_PER_DAY).map((b) => {
-                  const meta = statusMeta(b.status);
+                  const meta = statusMeta(b.status, locale);
                   return (
                     <div
                       key={b.id}
@@ -111,14 +117,14 @@ export function MonthView({
                         style={{ background: b.isFlagged ? "#a8681c" : meta.color }}
                       />
                       <span className="truncate">
-                        {formatTimeOnly(b.startTime)} {b.customerName ?? "Unnamed"}
+                        {formatTimeOnly(b.startTime)} {b.customerName ?? t.unnamed}
                       </span>
                     </div>
                   );
                 })}
                 {dayBookings.length > MAX_VISIBLE_PER_DAY && (
                   <div className="text-[10px] text-ink-muted">
-                    +{dayBookings.length - MAX_VISIBLE_PER_DAY} more
+                    {tMoreCount(locale, dayBookings.length - MAX_VISIBLE_PER_DAY)}
                   </div>
                 )}
               </div>

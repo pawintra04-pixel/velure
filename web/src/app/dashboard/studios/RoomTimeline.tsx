@@ -1,3 +1,5 @@
+import { resourcesText, type Locale } from "@/lib/i18n";
+
 export type RoomOccupant = {
   kind: "class" | "booking";
   id: string;
@@ -48,13 +50,17 @@ export function RoomTimeline({
   businessHours,
   occupants,
   dateISO,
+  locale,
 }: {
   businessHours: BusinessHours;
   occupants: RoomOccupant[];
   dateISO: string;
+  locale: Locale;
 }) {
+  const t = resourcesText[locale];
+
   if (!businessHours || businessHours.is_closed) {
-    return <div className="py-8 text-center text-sm text-ink-muted">Closed on this day.</div>;
+    return <div className="py-8 text-center text-sm text-ink-muted">{t.closedOnThisDay}</div>;
   }
 
   const gridOpen = timeToMinutes(businessHours.open_time!);
@@ -83,7 +89,7 @@ export function RoomTimeline({
   return (
     <div className="flex flex-col gap-2">
       <div className="text-xs text-ink-muted">
-        Open {formatClock(gridOpen)} – {formatClock(gridClose)}
+        {t.open} {formatClock(gridOpen)} – {formatClock(gridClose)}
       </div>
       {rows.map((row, i) =>
         row.type === "free" ? (
@@ -91,7 +97,7 @@ export function RoomTimeline({
             key={`free-${i}`}
             className="rounded-xl border border-dashed border-border px-4 py-2.5 text-sm text-ink-muted"
           >
-            Free · {formatClock(row.start)} – {formatClock(row.end)} ({formatDuration(row.end - row.start)})
+            {t.free} · {formatClock(row.start)} – {formatClock(row.end)} ({formatDuration(row.end - row.start)})
           </div>
         ) : (
           <div
@@ -107,7 +113,7 @@ export function RoomTimeline({
                   {row.occupant.serviceName}
                   {row.occupant.kind === "class" && (
                     <span className="rounded-full bg-ink/5 px-2 py-0.5 text-xs font-normal text-ink-secondary">
-                      Class
+                      {t.class}
                     </span>
                   )}
                 </div>
@@ -115,8 +121,8 @@ export function RoomTimeline({
                   {formatClock(minutesFromMidnight(row.occupant.startTime, dateISO))} –{" "}
                   {formatClock(minutesFromMidnight(row.occupant.endTime, dateISO))} · {row.occupant.staffName}
                   {row.occupant.kind === "class"
-                    ? ` · ${row.occupant.seatsBooked}/${row.occupant.capacity} booked`
-                    : ` · ${row.occupant.customerName ?? "Unnamed customer"}`}
+                    ? ` · ${row.occupant.seatsBooked}/${row.occupant.capacity} ${t.booked}`
+                    : ` · ${row.occupant.customerName ?? t.unnamedCustomer}`}
                 </div>
                 {row.occupant.ownerNote && (
                   <div className="mt-1 text-sm text-[#a8681c]">{row.occupant.ownerNote}</div>

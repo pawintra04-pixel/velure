@@ -9,6 +9,7 @@ import {
   type ActionResult,
 } from "./actions";
 import { formatBaht } from "@/lib/money";
+import { servicesText, tClassSeats, tMinBuffer, type Locale } from "@/lib/i18n";
 
 export type CustomField = { id: string; label: string; importance: "optional" | "important" | "required" };
 
@@ -26,13 +27,13 @@ export type Service = {
   customFields: CustomField[];
 };
 
-const IMPORTANCE_LABEL: Record<CustomField["importance"], string> = {
-  optional: "Optional",
-  important: "Important",
-  required: "Required to submit",
-};
-
-export function ServiceCard({ service }: { service: Service }) {
+export function ServiceCard({ service, locale }: { service: Service; locale: Locale }) {
+  const t = servicesText[locale];
+  const IMPORTANCE_LABEL: Record<CustomField["importance"], string> = {
+    optional: t.optional,
+    important: t.important,
+    required: t.requiredToSubmit,
+  };
   const [expanded, setExpanded] = useState(false);
   const [detailsState, detailsAction, detailsPending] = useActionState<ActionResult | null, FormData>(
     updateServiceDetails,
@@ -60,13 +61,13 @@ export function ServiceCard({ service }: { service: Service }) {
               <span className="font-medium">{service.name}</span>
               {service.capacity && (
                 <span className="rounded-full bg-[#eaf1fb] px-2 py-0.5 text-xs text-[#3462ad]">
-                  Class · {service.capacity} seats
+                  {tClassSeats(locale, service.capacity)}
                 </span>
               )}
             </div>
             <div className="mt-1 text-sm text-ink-muted">
-              {service.duration_minutes} min
-              {service.buffer_minutes > 0 && ` + ${service.buffer_minutes} min buffer`}
+              {service.duration_minutes} {t.minSuffix}
+              {service.buffer_minutes > 0 && tMinBuffer(locale, service.buffer_minutes)}
             </div>
             {service.description && (
               <div className="mt-1 text-sm text-ink-secondary sm:max-w-md">{service.description}</div>
@@ -80,10 +81,10 @@ export function ServiceCard({ service }: { service: Service }) {
             </div>
             <div className="text-xs text-ink-muted">
               {service.payment_mode === "deposit"
-                ? "Deposit"
+                ? t.deposit
                 : service.payment_mode === "free"
-                  ? "Free"
-                  : "Full payment"}
+                  ? t.free
+                  : t.fullPayment}
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -92,7 +93,7 @@ export function ServiceCard({ service }: { service: Service }) {
               onClick={() => setExpanded((v) => !v)}
               className="rounded-full border border-border px-3 py-1.5 text-sm text-ink-secondary hover:bg-page"
             >
-              {expanded ? "Close" : "Edit"}
+              {expanded ? t.close : t.edit}
             </button>
             <form action={deleteService}>
               <input type="hidden" name="serviceId" value={service.id} />
@@ -100,7 +101,7 @@ export function ServiceCard({ service }: { service: Service }) {
                 type="submit"
                 className="rounded-full border border-border px-3 py-1.5 text-sm text-ink-secondary hover:bg-page"
               >
-                Delete
+                {t.delete}
               </button>
             </form>
           </div>
@@ -112,17 +113,17 @@ export function ServiceCard({ service }: { service: Service }) {
           <form action={detailsAction} className="flex flex-col gap-3">
             <input type="hidden" name="serviceId" value={service.id} />
             <label className="text-sm font-medium text-ink-secondary">
-              Description
+              {t.description_}
               <textarea
                 name="description"
                 rows={3}
                 defaultValue={service.description ?? ""}
-                placeholder="What customers see on your booking page — what's included, what to expect, anything to prepare."
+                placeholder={t.descriptionPlaceholder}
                 className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm font-normal"
               />
             </label>
             <label className="text-sm font-medium text-ink-secondary">
-              Photo URL
+              {t.photoUrl}
               <input
                 name="imageUrl"
                 type="url"
@@ -132,19 +133,18 @@ export function ServiceCard({ service }: { service: Service }) {
               />
             </label>
             <label className="text-sm font-medium text-ink-secondary">
-              Capacity (seats)
+              {t.capacitySeats}
               <input
                 name="capacity"
                 type="number"
                 min={2}
                 step={1}
                 defaultValue={service.capacity ?? ""}
-                placeholder="Leave blank for a regular 1:1 service"
+                placeholder={t.capacityEditPlaceholder}
                 className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm font-normal"
               />
               <span className="mt-1 block text-xs font-normal text-ink-muted">
-                Only affects sessions scheduled after you save — sessions already on the
-                calendar keep their original capacity.
+                {t.capacityHint}
               </span>
             </label>
             {detailsState && !detailsState.ok && (
@@ -155,17 +155,16 @@ export function ServiceCard({ service }: { service: Service }) {
               disabled={detailsPending}
               className="self-start rounded-xl border border-border px-4 py-2 text-sm font-medium hover:bg-page disabled:opacity-50"
             >
-              {detailsPending ? "Saving..." : "Save details"}
+              {detailsPending ? t.saving : t.saveDetails}
             </button>
           </form>
 
           <div>
             <div className="text-sm font-medium text-ink-secondary">
-              Booking form questions
+              {t.bookingFormQuestions}
             </div>
             <p className="mt-1 text-xs text-ink-muted">
-              Extra questions customers answer when booking this service. Mark ones that
-              must be filled in to submit as required.
+              {t.bookingFormHint}
             </p>
 
             <div className="mt-3 flex flex-col gap-2">
@@ -191,13 +190,13 @@ export function ServiceCard({ service }: { service: Service }) {
                   <form action={deleteCustomField}>
                     <input type="hidden" name="fieldId" value={f.id} />
                     <button type="submit" className="text-xs text-ink-muted hover:text-ink-secondary">
-                      Remove
+                      {t.remove}
                     </button>
                   </form>
                 </div>
               ))}
               {service.customFields.length === 0 && (
-                <div className="text-sm text-ink-muted">No extra questions yet.</div>
+                <div className="text-sm text-ink-muted">{t.noExtraQuestionsYet}</div>
               )}
             </div>
 
@@ -205,7 +204,7 @@ export function ServiceCard({ service }: { service: Service }) {
               <input type="hidden" name="serviceId" value={service.id} />
               <input
                 name="label"
-                placeholder="e.g. Any allergies?"
+                placeholder={t.fieldPlaceholder}
                 className="min-w-0 flex-1 rounded-lg border border-border px-3 py-2 text-sm"
               />
               <select
@@ -213,16 +212,16 @@ export function ServiceCard({ service }: { service: Service }) {
                 defaultValue="optional"
                 className="rounded-lg border border-border px-3 py-2 text-sm"
               >
-                <option value="optional">Optional</option>
-                <option value="important">Important</option>
-                <option value="required">Required to submit</option>
+                <option value="optional">{t.optional}</option>
+                <option value="important">{t.important}</option>
+                <option value="required">{t.requiredToSubmit}</option>
               </select>
               <button
                 type="submit"
                 disabled={fieldPending}
                 className="rounded-xl border border-border px-4 py-2 text-sm font-medium hover:bg-page disabled:opacity-50"
               >
-                Add
+                {t.add}
               </button>
             </form>
             {fieldState && !fieldState.ok && (

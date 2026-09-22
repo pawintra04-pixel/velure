@@ -1,6 +1,7 @@
 import type { CalendarBooking, CalendarClassSession } from "@/lib/bookings-data";
 import { BookingRow, BookingList, formatTime } from "../bookings/BookingRow";
 import { updateClassSessionNote } from "../classes/actions";
+import { calendarText, type Locale } from "@/lib/i18n";
 
 // Every attendee of a class session shares the class's own booking row, but
 // they're grouped under one ClassSessionDetail card (with a roster) instead
@@ -9,10 +10,13 @@ import { updateClassSessionNote } from "../classes/actions";
 export function DayDetailList({
   bookings,
   classSessions,
+  locale,
 }: {
   bookings: CalendarBooking[];
   classSessions: CalendarClassSession[];
+  locale: Locale;
 }) {
+  const t = calendarText[locale];
   const regular = bookings.filter((b) => !b.classSessionId);
   const attendeesBySession = new Map<string, CalendarBooking[]>();
   for (const b of bookings) {
@@ -33,7 +37,7 @@ export function DayDetailList({
   if (entries.length === 0) {
     return (
       <div className="mt-4 rounded-2xl border border-dashed border-border p-8 text-center text-sm text-ink-muted">
-        No bookings on this day.
+        {t.noBookingsDay}
       </div>
     );
   }
@@ -51,6 +55,7 @@ export function DayDetailList({
           key={entry.session.id}
           session={entry.session}
           attendees={attendeesBySession.get(entry.session.id) ?? []}
+          locale={locale}
         />
       );
       runStart += 1;
@@ -62,7 +67,7 @@ export function DayDetailList({
     renderBlocks.push(
       <BookingList key={`run-${run[0].booking.id}`}>
         {run.map((r) => (
-          <BookingRow key={r.booking.id} b={r.booking} />
+          <BookingRow key={r.booking.id} b={r.booking} locale={locale} />
         ))}
       </BookingList>
     );
@@ -75,10 +80,13 @@ export function DayDetailList({
 function ClassSessionDetail({
   session,
   attendees,
+  locale,
 }: {
   session: CalendarClassSession;
   attendees: CalendarBooking[];
+  locale: Locale;
 }) {
+  const t = calendarText[locale];
   return (
     <div
       id={`class-${session.id}`}
@@ -89,17 +97,17 @@ function ClassSessionDetail({
       <div className="flex items-center gap-1.5 font-medium">
         {session.isFlagged && <span title="Flagged for special attention">📌</span>}
         {session.serviceName}
-        <span className="rounded-full bg-ink/5 px-2 py-0.5 text-xs font-normal text-ink-secondary">Class</span>
+        <span className="rounded-full bg-ink/5 px-2 py-0.5 text-xs font-normal text-ink-secondary">{t.class}</span>
       </div>
       <div className="mt-1 text-sm text-ink-muted">
         {formatTime(session.startTime)} · {session.staffName}
-        {session.resourceName && <> · {session.resourceName}</>} · {session.seatsBooked}/{session.capacity} booked
+        {session.resourceName && <> · {session.resourceName}</>} · {session.seatsBooked}/{session.capacity} {t.booked}
       </div>
       {session.ownerNote && <div className="mt-1 text-sm text-[#a8681c]">{session.ownerNote}</div>}
 
       <details className="mt-3">
         <summary className="cursor-pointer text-xs text-ink-muted hover:text-ink-secondary">
-          Note &amp; flag
+          {t.noteAndFlag}
         </summary>
         <form
           action={updateClassSessionNote}
@@ -109,27 +117,27 @@ function ClassSessionDetail({
           <input
             name="note"
             defaultValue={session.ownerNote ?? ""}
-            placeholder="e.g. VIP attendee, needs extra care"
+            placeholder={t.notePlaceholder}
             className="flex-1 rounded-lg border border-border px-3 py-1.5 text-sm"
           />
           <label className="flex items-center gap-1.5 text-sm text-ink-secondary">
             <input type="checkbox" name="flagged" defaultChecked={session.isFlagged} />
-            Flag
+            {t.flag}
           </label>
           <button type="submit" className="rounded-lg border border-border px-3 py-1.5 text-xs hover:bg-page">
-            Save
+            {t.save}
           </button>
         </form>
       </details>
 
       <div className="mt-4 border-t border-border pt-3">
-        <div className="text-xs font-medium text-ink-secondary">Attendees ({attendees.length})</div>
+        <div className="text-xs font-medium text-ink-secondary">{t.attendees} ({attendees.length})</div>
         {attendees.length === 0 ? (
-          <div className="mt-2 text-sm text-ink-muted">No one booked yet.</div>
+          <div className="mt-2 text-sm text-ink-muted">{t.noOneBookedYet}</div>
         ) : (
           <div className="mt-1 divide-y divide-border">
             {attendees.map((a) => (
-              <BookingRow key={a.id} b={a} compact />
+              <BookingRow key={a.id} b={a} locale={locale} compact />
             ))}
           </div>
         )}

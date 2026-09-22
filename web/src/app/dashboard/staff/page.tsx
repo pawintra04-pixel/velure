@@ -3,9 +3,12 @@ import { withBusinessContext } from "@/db/client";
 import { AddStaffForm } from "./AddStaffForm";
 import { StaffCard, type Staff } from "./StaffCard";
 import { PageShell, PageHeader } from "@/components/dashboard/PageShell";
+import { teamText } from "@/lib/i18n";
 
 export default async function StaffPage() {
   const owner = await requireOwner();
+  const locale = owner.locale;
+  const t = teamText[locale];
 
   const { staff, services } = await withBusinessContext(owner.businessId, async (c) => {
     // Two correlated subqueries rather than two LEFT JOINs off staff — joining
@@ -44,21 +47,21 @@ export default async function StaffPage() {
     <PageShell width="standard">
         <div className="border-b border-border pb-5">
           <PageHeader
-            title="Team"
-            description="Staff who can be booked for your services."
-            actions={<AddStaffForm services={services} />}
+            title={t.title}
+            description={t.description}
+            actions={<AddStaffForm services={services} locale={locale} />}
           />
         </div>
 
         <div className="mt-6">
           {staff.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-ink-muted">
-              No team members yet — add your first one to get started.
+              {t.noTeamYet}
             </div>
           ) : (
             <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
               {staff.map((s) => (
-                <StaffCard key={s.id} staff={s} />
+                <StaffCard key={s.id} staff={s} locale={locale} />
               ))}
             </div>
           )}

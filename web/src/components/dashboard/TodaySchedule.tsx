@@ -47,7 +47,7 @@ function nowLineIndex(entries: TodayScheduleEntry[], nowMs: number): number | nu
 const VISIBLE_ROWS = 6;
 
 function Row({ entry, locale }: { entry: TodayScheduleEntry; locale: Locale }) {
-  const meta = entry.status ? statusMeta(entry.status) : null;
+  const meta = entry.status ? statusMeta(entry.status, locale) : null;
   const initial = entry.title.trim().charAt(0).toUpperCase() || "?";
   // Service names already bake duration into the name itself (e.g. "Thai
   // Massage (60 min)") — the same convention BookingRow.tsx's subtitle

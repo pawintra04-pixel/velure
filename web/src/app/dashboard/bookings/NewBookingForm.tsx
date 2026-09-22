@@ -2,19 +2,23 @@
 
 import { useActionState, useEffect, useState } from "react";
 import { createManualBooking, type ManualBookingResult } from "./actions";
+import { bookingsText, type Locale } from "@/lib/i18n";
 
 type Option = { id: string; name: string };
 
 export function NewBookingForm({
   services,
   staff,
+  locale,
   buttonClassName,
 }: {
   services: Option[];
   staff: Option[];
+  locale: Locale;
   /** Overrides the trigger button's look only — the form/action underneath is unchanged. */
   buttonClassName?: string;
 }) {
+  const t = bookingsText[locale];
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState<ManualBookingResult | null, FormData>(
     createManualBooking,
@@ -48,7 +52,7 @@ export function NewBookingForm({
         onClick={() => setOpen(true)}
         className={buttonClassName ?? "rounded-xl border border-border px-4 py-2 text-sm font-medium hover:bg-page"}
       >
-        + New booking
+        + {t.newBooking}
       </button>
 
       {open && (
@@ -64,7 +68,7 @@ export function NewBookingForm({
             className="absolute inset-y-0 right-0 flex w-full animate-[drawer-slide-in_0.2s_ease-out] flex-col bg-surface shadow-xl sm:w-[420px]"
           >
             <div className="flex items-center justify-between border-b border-border px-6 py-4">
-              <h2 className="text-[17px] text-ink">New booking</h2>
+              <h2 className="text-[17px] text-ink">{t.newBooking}</h2>
               <button
                 type="button"
                 onClick={() => setOpen(false)}
@@ -78,9 +82,7 @@ export function NewBookingForm({
             </div>
 
             <form action={formAction} className="flex flex-1 flex-col gap-3 overflow-y-auto px-6 py-5">
-              <div className="text-sm font-medium text-ink-secondary">
-                For a booking taken by phone, LINE, or walk-in
-              </div>
+              <div className="text-sm font-medium text-ink-secondary">{t.forPhoneEtc}</div>
 
               <select name="serviceId" className="rounded-lg border border-border px-3 py-2 text-sm">
                 {services.map((s) => (
@@ -104,23 +106,23 @@ export function NewBookingForm({
 
               <input
                 name="customerName"
-                placeholder="Customer name"
+                placeholder={t.customerName}
                 className="rounded-lg border border-border px-3 py-2 text-sm"
               />
               <input
                 name="customerPhone"
-                placeholder="Phone number"
+                placeholder={t.phoneNumber}
                 className="rounded-lg border border-border px-3 py-2 text-sm"
               />
               <input
                 name="customerEmail"
                 type="email"
-                placeholder="Email (optional)"
+                placeholder={t.emailOptional}
                 className="rounded-lg border border-border px-3 py-2 text-sm"
               />
               <label className="flex items-center gap-2 text-sm text-ink-secondary">
                 <input type="checkbox" name="noCharge" />
-                No charge for this booking
+                {t.noCharge}
               </label>
 
               {state && !state.ok && <div className="text-sm text-[#d03b3b]">{state.error}</div>}
@@ -130,7 +132,7 @@ export function NewBookingForm({
                 disabled={pending || services.length === 0 || staff.length === 0}
                 className="mt-1 self-start rounded-xl bg-sunburst px-4 py-2.5 text-sm font-medium text-ink transition-[filter] hover:brightness-95 disabled:opacity-50"
               >
-                {pending ? "Creating..." : "Create booking"}
+                {pending ? t.creating : t.createBooking}
               </button>
             </form>
           </div>

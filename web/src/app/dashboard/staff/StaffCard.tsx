@@ -9,6 +9,7 @@ import {
   type ActionResult,
 } from "./actions";
 import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
+import { teamText, tDeleteStaffTitle, type Locale } from "@/lib/i18n";
 
 type DayHours = {
   day_of_week: number;
@@ -29,21 +30,21 @@ export type Staff = {
   blocks: Block[];
 };
 
-function formatBlockTime(iso: string): string {
-  return new Intl.DateTimeFormat("en-US", {
+function formatBlockTime(iso: string, locale: Locale): string {
+  return new Intl.DateTimeFormat(locale === "th" ? "th-TH" : "en-US", {
     timeZone: "Asia/Bangkok",
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(iso));
 }
 
-const DAY_LABELS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-
 function toHHMM(t: string | null): string {
   return t ? t.slice(0, 5) : "";
 }
 
-export function StaffCard({ staff }: { staff: Staff }) {
+export function StaffCard({ staff, locale }: { staff: Staff; locale: Locale }) {
+  const t = teamText[locale];
+  const DAY_LABELS = [t.sunday, t.monday, t.tuesday, t.wednesday, t.thursday, t.friday, t.saturday];
   const [expanded, setExpanded] = useState(false);
   const [state, formAction, pending] = useActionState<ActionResult | null, FormData>(
     updateStaffHours,
@@ -72,7 +73,7 @@ export function StaffCard({ staff }: { staff: Staff }) {
         <div className="min-w-0">
           <div className="font-medium">{staff.name}</div>
           <div className="mt-1 text-sm text-ink-muted">
-            {staff.service_names.length > 0 ? staff.service_names.join(", ") : "No services assigned"}
+            {staff.service_names.length > 0 ? staff.service_names.join(", ") : t.noServicesAssigned}
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -81,16 +82,16 @@ export function StaffCard({ staff }: { staff: Staff }) {
             onClick={() => setExpanded((v) => !v)}
             className="rounded-full border border-border px-3 py-1.5 text-sm text-ink-secondary hover:bg-page"
           >
-            {expanded ? "Close" : "Hours"}
+            {expanded ? t.close : t.hours}
           </button>
           <ConfirmSubmitButton
             action={deleteStaff}
             hiddenFields={{ staffId: staff.id }}
-            label="Delete"
-            pendingLabel="Deleting…"
-            confirmTitle={`Delete ${staff.name}?`}
-            confirmDescription="This removes them from Team and unassigns them from any services. Staff with any booking history — including past or cancelled bookings — can't be deleted, to keep existing reports accurate."
-            confirmLabel="Delete"
+            label={t.delete}
+            pendingLabel={t.deleting}
+            confirmTitle={tDeleteStaffTitle(locale, staff.name)}
+            confirmDescription={t.deleteStaffDesc}
+            confirmLabel={t.delete}
             danger
             buttonClassName="rounded-full border border-border px-3 py-1.5 text-sm text-ink-secondary hover:bg-page"
           />
@@ -100,7 +101,7 @@ export function StaffCard({ staff }: { staff: Staff }) {
       {expanded && (
         <form action={formAction} className="mt-5 flex flex-col gap-3 border-t border-border pt-5">
           <input type="hidden" name="staffId" value={staff.id} />
-          <div className="text-sm font-medium text-ink-secondary">Working hours &amp; breaks</div>
+          <div className="text-sm font-medium text-ink-secondary">{t.workingHours}</div>
           <div className="flex flex-col gap-2">
             {staff.hours.map((h) => (
               <div key={h.day_of_week} className="flex flex-wrap items-center gap-3 text-sm">
@@ -114,7 +115,7 @@ export function StaffCard({ staff }: { staff: Staff }) {
                       setOffDays((v) => ({ ...v, [h.day_of_week]: e.target.checked }))
                     }
                   />
-                  Off
+                  {t.off}
                 </label>
                 {!offDays[h.day_of_week] && (
                   <>
@@ -124,21 +125,21 @@ export function StaffCard({ staff }: { staff: Staff }) {
                       defaultValue={toHHMM(h.start_time) || "09:00"}
                       className="rounded-lg border border-border px-2 py-1.5 text-sm"
                     />
-                    <span className="text-ink-muted">to</span>
+                    <span className="text-ink-muted">{t.to}</span>
                     <input
                       type="time"
                       name={`end_${h.day_of_week}`}
                       defaultValue={toHHMM(h.end_time) || "19:00"}
                       className="rounded-lg border border-border px-2 py-1.5 text-sm"
                     />
-                    <span className="text-ink-muted">break</span>
+                    <span className="text-ink-muted">{t.break}</span>
                     <input
                       type="time"
                       name={`breakStart_${h.day_of_week}`}
                       defaultValue={toHHMM(h.break_start)}
                       className="rounded-lg border border-border px-2 py-1.5 text-sm"
                     />
-                    <span className="text-ink-muted">to</span>
+                    <span className="text-ink-muted">{t.to}</span>
                     <input
                       type="time"
                       name={`breakEnd_${h.day_of_week}`}
@@ -157,17 +158,16 @@ export function StaffCard({ staff }: { staff: Staff }) {
             disabled={pending}
             className="self-start rounded-xl border border-border px-4 py-2 text-sm font-medium hover:bg-page disabled:opacity-50"
           >
-            {pending ? "Saving..." : "Save hours"}
+            {pending ? t.saving : t.saveHours}
           </button>
         </form>
       )}
 
       {expanded && (
         <div className="mt-5 flex flex-col gap-3 border-t border-border pt-5">
-          <div className="text-sm font-medium text-ink-secondary">Blocked time</div>
+          <div className="text-sm font-medium text-ink-secondary">{t.blockedTime}</div>
           <p className="text-xs text-ink-muted">
-            Lunch, a meeting, or anything else that should make this person unbookable without
-            creating a fake booking.
+            {t.blockedTimeHint}
           </p>
 
           <div className="flex flex-col gap-2">
@@ -177,19 +177,19 @@ export function StaffCard({ staff }: { staff: Staff }) {
                 className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm"
               >
                 <span>
-                  {formatBlockTime(b.start_time)} – {formatBlockTime(b.end_time)}
+                  {formatBlockTime(b.start_time, locale)} – {formatBlockTime(b.end_time, locale)}
                   {b.reason && <span className="text-ink-muted"> · {b.reason}</span>}
                 </span>
                 <form action={deleteStaffBlock}>
                   <input type="hidden" name="blockId" value={b.id} />
                   <button type="submit" className="text-xs text-ink-muted hover:text-ink-secondary">
-                    Remove
+                    {t.remove}
                   </button>
                 </form>
               </div>
             ))}
             {staff.blocks.length === 0 && (
-              <div className="text-sm text-ink-muted">No upcoming blocks.</div>
+              <div className="text-sm text-ink-muted">{t.noUpcomingBlocks}</div>
             )}
           </div>
 
@@ -197,11 +197,11 @@ export function StaffCard({ staff }: { staff: Staff }) {
             <input type="hidden" name="staffId" value={staff.id} />
             <input type="date" name="date" className="rounded-lg border border-border px-2 py-1.5 text-sm" />
             <input type="time" name="start" className="rounded-lg border border-border px-2 py-1.5 text-sm" />
-            <span className="text-ink-muted">to</span>
+            <span className="text-ink-muted">{t.to}</span>
             <input type="time" name="end" className="rounded-lg border border-border px-2 py-1.5 text-sm" />
             <input
               name="reason"
-              placeholder="Reason (optional)"
+              placeholder={t.reasonOptional}
               className="min-w-0 flex-1 rounded-lg border border-border px-2 py-1.5 text-sm"
             />
             <button
@@ -209,7 +209,7 @@ export function StaffCard({ staff }: { staff: Staff }) {
               disabled={blockPending}
               className="rounded-xl border border-border px-3 py-1.5 text-sm font-medium hover:bg-page disabled:opacity-50"
             >
-              Add block
+              {t.addBlock}
             </button>
           </form>
           {blockState && !blockState.ok && (

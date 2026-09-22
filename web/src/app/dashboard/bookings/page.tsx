@@ -17,19 +17,23 @@ import { MonthView } from "./MonthView";
 import { NewBookingForm } from "./NewBookingForm";
 import { CategoryTabs } from "./CategoryTabs";
 import { PageShell, PageHeader } from "@/components/dashboard/PageShell";
+import { bookingsText, type Locale } from "@/lib/i18n";
 
 function toISO(d: Date): string {
   return d.toISOString();
 }
 
-const STATUS_FILTER_LABELS: Record<string, string> = {
-  "CONFIRMED,COMPLETED": "Confirmed",
-  "TEMPORARY_HOLD,PAYMENT_PENDING": "Unpaid",
-  "CANCELLED,NO_SHOW,PAYMENT_FAILED,EXPIRED": "Cancelled/no-show",
-  "CONFIRMED": "Paid",
-  "COMPLETED": "Completed",
-  "CANCELLED,NO_SHOW,PAYMENT_FAILED,EXPIRED,REFUNDED,PARTIALLY_REFUNDED": "Cancelled",
-};
+function statusFilterLabelKey(status: string): string {
+  const map: Record<string, string> = {
+    "CONFIRMED,COMPLETED": "filterConfirmed",
+    "TEMPORARY_HOLD,PAYMENT_PENDING": "filterUnpaid",
+    "CANCELLED,NO_SHOW,PAYMENT_FAILED,EXPIRED": "filterCancelledNoShow",
+    CONFIRMED: "filterPaid",
+    COMPLETED: "filterCompleted",
+    "CANCELLED,NO_SHOW,PAYMENT_FAILED,EXPIRED,REFUNDED,PARTIALLY_REFUNDED": "filterCancelled",
+  };
+  return map[status] ?? "";
+}
 
 // The default "All" list — everything still worth acting on. Cancelled/
 // no-show/failed/refunded bookings pile up over a business's lifetime and
@@ -43,6 +47,8 @@ export default async function BookingsPage({
   searchParams: Promise<{ view?: string; date?: string; status?: string }>;
 }) {
   const owner = await requireOwner();
+  const locale = owner.locale;
+  const t = bookingsText[locale];
   const { view = "list", date = todayISOInBangkok(), status } = await searchParams;
   const statusFilter = status ? status.split(",") : null;
 
@@ -52,18 +58,22 @@ export default async function BookingsPage({
     return { services: servicesResult.rows, staff: staffResult.rows };
   });
 
+  const filterLabelKey = status ? statusFilterLabelKey(status) : "";
+  const filterLabel = filterLabelKey ? t[filterLabelKey] : status;
+
   return (
     <PageShell width="standard">
         <div className="border-b border-border pb-5">
           <PageHeader
-            title="Bookings"
-            description="Manage appointments across list, day, week, and month views."
+            title={t.title}
+            description={t.description}
             actions={
               <>
-                <ViewTabs active={view} date={date} />
+                <ViewTabs active={view} date={date} locale={locale} />
                 <NewBookingForm
                   services={services}
                   staff={staff}
+                  locale={locale}
                   buttonClassName="rounded-lg bg-sunburst px-4 py-2 text-sm font-medium text-ink transition-[filter] hover:brightness-95"
                 />
               </>
@@ -72,15 +82,15 @@ export default async function BookingsPage({
 
           {view === "list" && (
             <div className="mt-5">
-              <CategoryTabs activeStatus={status ?? null} />
+              <CategoryTabs activeStatus={status ?? null} locale={locale} />
             </div>
           )}
 
           {statusFilter && (
             <div className="mt-4 flex items-center gap-2 text-sm text-ink-secondary">
-              Showing: <span className="text-ink">{STATUS_FILTER_LABELS[status!] ?? status}</span>
+              {t.showing} <span className="text-ink">{filterLabel}</span>
               <Link href="/dashboard/bookings" className="text-ink underline">
-                Clear
+                {t.clear}
               </Link>
             </div>
           )}
@@ -90,6 +100,7 @@ export default async function BookingsPage({
           {view === "day" && (
             <DayView
               date={date}
+              locale={locale}
               bookings={await getBookingsInRange(
                 owner.businessId,
                 toISO(bangkokMidnight(date)),
@@ -100,6 +111,7 @@ export default async function BookingsPage({
           {view === "week" && (
             <WeekView
               weekStart={startOfWeek(date)}
+              locale={locale}
               bookings={await getBookingsInRange(
                 owner.businessId,
                 toISO(bangkokMidnight(startOfWeek(date))),
@@ -110,6 +122,7 @@ export default async function BookingsPage({
           {view === "month" && (
             <MonthView
               monthStart={startOfMonth(date)}
+              locale={locale}
               bookings={await getBookingsInRange(
                 owner.businessId,
                 toISO(bangkokMidnight(startOfWeek(startOfMonth(date)))),
@@ -125,6 +138,7 @@ export default async function BookingsPage({
               businessId={owner.businessId}
               today={todayISOInBangkok()}
               statusFilter={statusFilter}
+              locale={locale}
             />
           )}
         </div>
@@ -136,11 +150,14 @@ async function ListView({
   businessId,
   today,
   statusFilter,
+  locale,
 }: {
   businessId: string;
   today: string;
   statusFilter: string[] | null;
+  locale: Locale;
 }) {
+  const t = bookingsText[locale];
   // The plain list only looks 1 day back by design (recent + upcoming, not
   // a full history dump) — but a status filter arriving from the Overview
   // donut ("Cancelled/no-show this month") needs to reach back far enough
@@ -158,7 +175,7 @@ async function ListView({
   if (bookings.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-ink-muted">
-        {statusFilter ? "No bookings match this filter." : "No bookings yet."}
+        {statusFilter ? t.noBookingsFilter : t.noBookingsYet}
       </div>
     );
   }
@@ -166,7 +183,7 @@ async function ListView({
   return (
     <BookingList>
       {bookings.map((b) => (
-        <BookingRow key={b.id} b={b} />
+        <BookingRow key={b.id} b={b} locale={locale} />
       ))}
     </BookingList>
   );

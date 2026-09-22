@@ -3,6 +3,7 @@ import { bangkokMidnight, todayISOInBangkok } from "@/lib/bookings-data";
 import type { CalendarBooking, CalendarClassSession, CalendarStaffBlock } from "@/lib/bookings-data";
 import { colorForService } from "@/lib/service-color";
 import { statusMeta } from "@/lib/booking-status";
+import { calendarText, type Locale } from "@/lib/i18n";
 
 const FLAG_BG = "#fdf3e6";
 const FLAG_INK = "#a8681c";
@@ -77,6 +78,7 @@ export function CalendarGrid({
   allBookings,
   classSessions,
   blocks,
+  locale,
 }: {
   dateISO: string;
   staff: { id: string; name: string }[];
@@ -87,15 +89,18 @@ export function CalendarGrid({
   allBookings: CalendarBooking[];
   classSessions: CalendarClassSession[];
   blocks: CalendarStaffBlock[];
+  locale: Locale;
 }) {
+  const t = calendarText[locale];
+
   if (!businessHours || businessHours.is_closed) {
     return (
       <div className="rounded-2xl border border-border bg-surface p-8 text-center text-sm text-ink-muted">
-        Closed on this day — change your hours on the{" "}
+        {t.closedOnThisDay}{" "}
         <Link href="/dashboard/settings" className="text-accent underline">
-          Settings
+          {t.settingsPage}
         </Link>{" "}
-        page.
+        {t.pageSuffix}
       </div>
     );
   }
@@ -103,12 +108,12 @@ export function CalendarGrid({
   if (staff.length === 0) {
     return (
       <div className="flex flex-col items-start gap-3 rounded-2xl border border-border bg-surface p-8 text-sm text-ink-muted">
-        <p>Add a team member to see their schedule here.</p>
+        <p>{t.addTeamMember}</p>
         <Link
           href="/dashboard/staff"
           className="rounded-xl bg-sunburst px-4 py-2.5 text-sm font-medium text-ink"
         >
-          Go to Team
+          {t.goToTeam}
         </Link>
       </div>
     );
@@ -168,17 +173,17 @@ export function CalendarGrid({
   for (const b of allBookings) {
     if (!b.classSessionId || HIDDEN_STATUSES.includes(b.status)) continue;
     if (!attendeeNamesBySession.has(b.classSessionId)) attendeeNamesBySession.set(b.classSessionId, []);
-    attendeeNamesBySession.get(b.classSessionId)!.push(b.customerName ?? "Unnamed customer");
+    attendeeNamesBySession.get(b.classSessionId)!.push(b.customerName ?? t.unnamedCustomer);
   }
 
   function classTooltip(session: CalendarClassSession): string {
     const attendees = attendeeNamesBySession.get(session.id) ?? [];
     return [
       session.serviceName,
-      session.resourceName ? `Room: ${session.resourceName}` : null,
+      session.resourceName ? `${t.room}: ${session.resourceName}` : null,
       `${formatTimeOnly(session.startTime)}–${formatTimeOnly(session.endTime)}`,
-      `${session.seatsBooked}/${session.capacity} booked`,
-      attendees.length > 0 ? `Attendees: ${attendees.join(", ")}` : "No one booked yet",
+      `${session.seatsBooked}/${session.capacity} ${t.booked}`,
+      attendees.length > 0 ? `${t.attendees}: ${attendees.join(", ")}` : t.noOneBookedTooltip,
     ]
       .filter(Boolean)
       .join("\n");
@@ -188,8 +193,8 @@ export function CalendarGrid({
     return [
       booking.serviceName,
       `${formatTimeOnly(booking.startTime)}–${formatTimeOnly(booking.endTime)}`,
-      booking.customerName ?? "Unnamed customer",
-      booking.status.replace("_", " "),
+      booking.customerName ?? t.unnamedCustomer,
+      statusMeta(booking.status, locale).label,
     ].join("\n");
   }
 
@@ -304,7 +309,7 @@ export function CalendarGrid({
                         </div>
                         <div className="truncate opacity-80">
                           {session.seatsBooked}/{session.capacity}
-                          {soon && " · Soon"}
+                          {soon && ` · ${t.soon}`}
                         </div>
                       </Link>
                     );
@@ -319,7 +324,7 @@ export function CalendarGrid({
                     // everywhere the same meaning as the schedule list and
                     // the Overview page. Flag stays its own distinct amber
                     // tint since it's orthogonal metadata, not a status.
-                    const meta = statusMeta(booking.status);
+                    const meta = statusMeta(booking.status, locale);
                     const color = booking.isFlagged
                       ? { bg: FLAG_BG, ink: FLAG_INK }
                       : { bg: `color-mix(in srgb, ${meta.color} 14%, white)`, ink: meta.color };
@@ -344,8 +349,8 @@ export function CalendarGrid({
                           {booking.serviceName}
                         </div>
                         <div className="truncate opacity-80">
-                          {booking.customerName ?? (pending ? "Pending details" : "Walk-in")}
-                          {soon && " · Soon"}
+                          {booking.customerName ?? (pending ? t.pendingDetails : t.walkIn)}
+                          {soon && ` · ${t.soon}`}
                         </div>
                       </Link>
                     );

@@ -11,7 +11,8 @@ import {
   type ActionResult,
 } from "./actions";
 import { formatBaht } from "@/lib/money";
-import { servicesText, tClassSeats, tMinBuffer, type Locale } from "@/lib/i18n";
+import { effectiveDepositAmount } from "@/lib/deposit";
+import { servicesText, tClassSeats, tMinBuffer, tDepositPercentLabel, type Locale } from "@/lib/i18n";
 
 export type CustomField = { id: string; label: string; importance: "optional" | "important" | "required" };
 export type PackageDef = {
@@ -30,6 +31,7 @@ export type Service = {
   price_amount: number;
   payment_mode: string;
   deposit_amount: number | null;
+  deposit_percent: number | null;
   description: string | null;
   image_url: string | null;
   capacity: number | null;
@@ -49,6 +51,22 @@ export function ServiceCard({ service, locale }: { service: Service; locale: Loc
     updateServiceDetails,
     null
   );
+  const [paymentMode, setPaymentMode] = useState(service.payment_mode);
+  const [depositKind, setDepositKind] = useState<"fixed" | "percent">(
+    service.deposit_percent != null ? "percent" : "fixed"
+  );
+  // A successful save revalidates and brings fresh server props, but this
+  // component stays mounted (same key) across that re-render, so the local
+  // dropdown/radio state would otherwise keep showing whatever the owner
+  // had selected before saving instead of what was actually just saved —
+  // adjusted during render against the previous prop values, same pattern
+  // Sidebar.tsx and AddServiceForm.tsx already use for this exact case.
+  const [prevService, setPrevService] = useState(service);
+  if (prevService.payment_mode !== service.payment_mode || prevService.deposit_percent !== service.deposit_percent) {
+    setPrevService(service);
+    setPaymentMode(service.payment_mode);
+    setDepositKind(service.deposit_percent != null ? "percent" : "fixed");
+  }
   const [fieldState, fieldAction, fieldPending] = useActionState<ActionResult | null, FormData>(
     addCustomField,
     null
@@ -91,11 +109,21 @@ export function ServiceCard({ service, locale }: { service: Service; locale: Loc
         <div className="flex shrink-0 items-center justify-between gap-4 sm:justify-end">
           <div>
             <div className="font-semibold">
-              {formatBaht(service.payment_mode === "deposit" ? service.deposit_amount ?? 0 : service.price_amount)}
+              {formatBaht(
+                service.payment_mode === "deposit"
+                  ? effectiveDepositAmount({
+                      priceAmount: service.price_amount,
+                      depositAmount: service.deposit_amount,
+                      depositPercent: service.deposit_percent,
+                    })
+                  : service.price_amount
+              )}
             </div>
             <div className="text-xs text-ink-muted">
               {service.payment_mode === "deposit"
-                ? t.deposit
+                ? service.deposit_percent != null
+                  ? tDepositPercentLabel(locale, service.deposit_percent)
+                  : t.deposit
                 : service.payment_mode === "free"
                   ? t.free
                   : t.fullPayment}
@@ -161,6 +189,66 @@ export function ServiceCard({ service, locale }: { service: Service; locale: Loc
                 {t.capacityHint}
               </span>
             </label>
+            <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
+              <label className="text-sm font-medium text-ink-secondary">
+                {t.paymentMode}
+                <select
+                  name="paymentMode"
+                  value={paymentMode}
+                  onChange={(e) => setPaymentMode(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm font-normal"
+                >
+                  <option value="full">{t.fullPayment}</option>
+                  <option value="deposit">{t.deposit}</option>
+                  <option value="free">{t.free}</option>
+                </select>
+              </label>
+              {paymentMode === "deposit" && (
+                <>
+                  <div className="flex gap-3 text-sm">
+                    <label className="flex items-center gap-1.5">
+                      <input
+                        type="radio"
+                        checked={depositKind === "fixed"}
+                        onChange={() => setDepositKind("fixed")}
+                      />
+                      {t.depositFixed}
+                    </label>
+                    <label className="flex items-center gap-1.5">
+                      <input
+                        type="radio"
+                        checked={depositKind === "percent"}
+                        onChange={() => setDepositKind("percent")}
+                      />
+                      {t.depositPercentOption}
+                    </label>
+                  </div>
+                  <input type="hidden" name="depositKind" value={depositKind} />
+                  {depositKind === "fixed" ? (
+                    <input
+                      name="depositBaht"
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      defaultValue={service.deposit_amount != null ? service.deposit_amount / 100 : ""}
+                      placeholder={t.depositAmountThb}
+                      className="w-full rounded-lg border border-border px-3 py-2 text-sm"
+                    />
+                  ) : (
+                    <input
+                      name="depositPercent"
+                      type="number"
+                      min={1}
+                      max={100}
+                      step={1}
+                      defaultValue={service.deposit_percent ?? ""}
+                      placeholder={t.depositPercentPlaceholder}
+                      className="w-full rounded-lg border border-border px-3 py-2 text-sm"
+                    />
+                  )}
+                </>
+              )}
+            </div>
             {detailsState && !detailsState.ok && (
               <div className="text-sm text-[#d03b3b]">{detailsState.error}</div>
             )}

@@ -8,6 +8,7 @@ import { claimClassSeat, releaseClassSeat } from "@/lib/classes";
 import { getOrCreateAnonId } from "@/lib/anon-session";
 import { isStaffFreeForRange, isSlotConflictError } from "@/lib/staff-availability";
 import { joinWaitlist as joinWaitlistEntry, type JoinWaitlistResult } from "@/lib/waitlist";
+import { effectiveDepositAmount } from "@/lib/deposit";
 
 export async function joinWaitlist(input: {
   businessId: string;
@@ -70,7 +71,7 @@ export async function createQuickHold(input: {
       if (Number(count) >= MAX_ACTIVE_HOLDS_PER_VISITOR) throw new Error("too_many_holds");
 
       const { rows: [service] } = await c.query(
-        `SELECT price_amount, payment_mode, deposit_amount FROM services WHERE id = $1`,
+        `SELECT price_amount, payment_mode, deposit_amount, deposit_percent FROM services WHERE id = $1`,
         [serviceId]
       );
       if (!service) throw new Error("service_not_found");
@@ -93,7 +94,11 @@ export async function createQuickHold(input: {
         service.payment_mode === "free"
           ? 0
           : service.payment_mode === "deposit"
-            ? service.deposit_amount
+            ? effectiveDepositAmount({
+                priceAmount: service.price_amount,
+                depositAmount: service.deposit_amount,
+                depositPercent: service.deposit_percent,
+              })
             : service.price_amount;
 
       const { rows: [booking] } = await c.query(
@@ -167,14 +172,18 @@ export async function reserveClassSeat(input: {
       if (!claimed) throw new Error("class_full");
 
       const { rows: [service] } = await c.query(
-        `SELECT price_amount, payment_mode, deposit_amount FROM services WHERE id = $1`,
+        `SELECT price_amount, payment_mode, deposit_amount, deposit_percent FROM services WHERE id = $1`,
         [session.service_id]
       );
       const amount =
         service.payment_mode === "free"
           ? 0
           : service.payment_mode === "deposit"
-            ? service.deposit_amount
+            ? effectiveDepositAmount({
+                priceAmount: service.price_amount,
+                depositAmount: service.deposit_amount,
+                depositPercent: service.deposit_percent,
+              })
             : service.price_amount;
 
       const { rows: [booking] } = await c.query(

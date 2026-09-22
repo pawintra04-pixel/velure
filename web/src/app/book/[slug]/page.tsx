@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getBusinessBySlug } from "@/lib/business";
 import { withBusinessContext } from "@/db/client";
 import { formatBaht } from "@/lib/money";
+import { effectiveDepositAmount } from "@/lib/deposit";
 import { BookingHeader } from "@/components/booking/BookingHeader";
 
 export default async function BookServicesPage({
@@ -19,7 +20,7 @@ export default async function BookServicesPage({
 
   const services = await withBusinessContext(business.id, async (c) => {
     const { rows } = await c.query(
-      `SELECT id, name, duration_minutes, price_amount, payment_mode, deposit_amount, description, image_url
+      `SELECT id, name, duration_minutes, price_amount, payment_mode, deposit_amount, deposit_percent, description, image_url
        FROM services ORDER BY name`
     );
     return rows;
@@ -40,6 +41,15 @@ export default async function BookServicesPage({
             {business.contact_email && <span>{business.contact_email}</span>}
           </div>
         )}
+
+        {/* Shown before the customer picks a time or pays anything —
+            the roadmap's own "Policies must be clearly shown BEFORE
+            customer payment" requirement, previously not met at all. */}
+        <p className="mt-3 max-w-2xl text-xs text-ink-muted">
+          Reschedule up to {business.reschedule_cutoff_hours}h and cancel up to{" "}
+          {business.cancel_cutoff_hours}h before your appointment. Deposits (where shown) are
+          part of the total price, not an extra charge.
+        </p>
 
         <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {services.length === 0 && (
@@ -67,10 +77,20 @@ export default async function BookServicesPage({
                 </div>
                 <div className="mt-3">
                   <div className="font-semibold">
-                    {formatBaht(s.payment_mode === "deposit" ? s.deposit_amount : s.price_amount)}
+                    {formatBaht(
+                      s.payment_mode === "deposit"
+                        ? effectiveDepositAmount({
+                            priceAmount: s.price_amount,
+                            depositAmount: s.deposit_amount,
+                            depositPercent: s.deposit_percent,
+                          })
+                        : s.price_amount
+                    )}
                   </div>
                   {s.payment_mode === "deposit" && (
-                    <div className="text-xs text-ink-muted">Deposit</div>
+                    <div className="text-xs text-ink-muted">
+                      Deposit{s.deposit_percent != null ? ` (${s.deposit_percent}%)` : ""} — full price {formatBaht(s.price_amount)}
+                    </div>
                   )}
                 </div>
               </div>

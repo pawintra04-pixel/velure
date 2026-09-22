@@ -17,7 +17,9 @@ export async function addService(_prev: ActionResult | null, formData: FormData)
   const bufferMinutes = Number(formData.get("bufferMinutes") ?? 0);
   const priceBaht = Number(formData.get("priceBaht"));
   const paymentMode = String(formData.get("paymentMode") ?? "full");
+  const depositKind = String(formData.get("depositKind") ?? "fixed");
   const depositBaht = Number(formData.get("depositBaht") ?? 0);
+  const depositPercentRaw = Number(formData.get("depositPercent") ?? 0);
   const capacityRaw = String(formData.get("capacity") ?? "").trim();
   const capacity = capacityRaw ? Number(capacityRaw) : null;
 
@@ -27,8 +29,20 @@ export async function addService(_prev: ActionResult | null, formData: FormData)
   if (!Number.isFinite(priceBaht) || priceBaht < 0) {
     return { ok: false, error: "Price must be a valid amount." };
   }
-  if (paymentMode === "deposit" && (!Number.isFinite(depositBaht) || depositBaht <= 0)) {
-    return { ok: false, error: "Deposit amount is required for deposit-mode services." };
+  let depositAmount: number | null = null;
+  let depositPercent: number | null = null;
+  if (paymentMode === "deposit") {
+    if (depositKind === "percent") {
+      if (!Number.isFinite(depositPercentRaw) || depositPercentRaw <= 0 || depositPercentRaw > 100) {
+        return { ok: false, error: "Deposit percent must be between 1 and 100." };
+      }
+      depositPercent = depositPercentRaw;
+    } else {
+      if (!Number.isFinite(depositBaht) || depositBaht <= 0) {
+        return { ok: false, error: "Deposit amount is required for deposit-mode services." };
+      }
+      depositAmount = Math.round(depositBaht * 100);
+    }
   }
   if (capacity !== null && (!Number.isInteger(capacity) || capacity < 2)) {
     return { ok: false, error: "Capacity must be a whole number of 2 or more (leave blank for a regular 1:1 service)." };
@@ -37,8 +51,8 @@ export async function addService(_prev: ActionResult | null, formData: FormData)
   await withBusinessContext(owner.businessId, (c) =>
     c.query(
       `INSERT INTO services
-         (business_id, name, duration_minutes, buffer_minutes, price_amount, payment_mode, deposit_amount, capacity)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+         (business_id, name, duration_minutes, buffer_minutes, price_amount, payment_mode, deposit_amount, deposit_percent, capacity)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
       [
         owner.businessId,
         name,
@@ -46,7 +60,8 @@ export async function addService(_prev: ActionResult | null, formData: FormData)
         bufferMinutes,
         Math.round(priceBaht * 100),
         paymentMode,
-        paymentMode === "deposit" ? Math.round(depositBaht * 100) : null,
+        depositAmount,
+        depositPercent,
         capacity,
       ]
     )
@@ -67,6 +82,10 @@ export async function updateServiceDetails(
   const imageUrl = String(formData.get("imageUrl") ?? "").trim();
   const capacityRaw = String(formData.get("capacity") ?? "").trim();
   const capacity = capacityRaw ? Number(capacityRaw) : null;
+  const paymentMode = String(formData.get("paymentMode") ?? "full");
+  const depositKind = String(formData.get("depositKind") ?? "fixed");
+  const depositBahtRaw = String(formData.get("depositBaht") ?? "").trim();
+  const depositPercentRaw = String(formData.get("depositPercent") ?? "").trim();
 
   if (!serviceId) return { ok: false, error: "Missing service." };
   if (imageUrl && !/^https?:\/\//.test(imageUrl)) {
@@ -75,17 +94,43 @@ export async function updateServiceDetails(
   if (capacity !== null && (!Number.isInteger(capacity) || capacity < 2)) {
     return { ok: false, error: "Capacity must be a whole number of 2 or more (leave blank for a regular 1:1 service)." };
   }
+  if (!["full", "deposit", "free"].includes(paymentMode)) {
+    return { ok: false, error: "Invalid payment mode." };
+  }
+
+  let depositAmount: number | null = null;
+  let depositPercent: number | null = null;
+  if (paymentMode === "deposit") {
+    if (depositKind === "percent") {
+      depositPercent = Number(depositPercentRaw);
+      if (!Number.isFinite(depositPercent) || depositPercent <= 0 || depositPercent > 100) {
+        return { ok: false, error: "Deposit percent must be between 1 and 100." };
+      }
+    } else {
+      const depositBaht = Number(depositBahtRaw);
+      if (!Number.isFinite(depositBaht) || depositBaht <= 0) {
+        return { ok: false, error: "Deposit amount is required for deposit-mode services." };
+      }
+      depositAmount = Math.round(depositBaht * 100);
+    }
+  }
 
   // Each class_session snapshots its own capacity at creation time (see
   // classes/actions.ts createOneSession) rather than referencing this
   // column live, so changing it here only takes effect for sessions
   // scheduled after the change — already-scheduled ones keep whatever
-  // capacity they were created with, same as changing a service's price
-  // never touches bookings already made at the old price.
+  // capacity they were created with. Same principle for payment_mode/
+  // deposit here: a booking's real charge is captured into bookings.amount
+  // at booking time (see lib/deposit.ts's callers), never re-derived from
+  // the service later, so changing a service's policy is always safe for
+  // bookings already made under the old one.
   await withBusinessContext(owner.businessId, (c) =>
     c.query(
-      `UPDATE services SET description = $1, image_url = $2, capacity = $3 WHERE id = $4`,
-      [description || null, imageUrl || null, capacity, serviceId]
+      `UPDATE services
+       SET description = $1, image_url = $2, capacity = $3,
+           payment_mode = $4, deposit_amount = $5, deposit_percent = $6
+       WHERE id = $7`,
+      [description || null, imageUrl || null, capacity, paymentMode, depositAmount, depositPercent, serviceId]
     )
   );
 

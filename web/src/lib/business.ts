@@ -9,6 +9,8 @@ export type PublicBusiness = {
   address: string | null;
   contact_phone: string | null;
   contact_email: string | null;
+  cancel_cutoff_hours: number;
+  reschedule_cutoff_hours: number;
 };
 
 /**
@@ -19,7 +21,8 @@ export type PublicBusiness = {
  */
 export async function getBusinessBySlug(slug: string): Promise<PublicBusiness | null> {
   const { rows: [row] } = await adminPool.query(
-    `SELECT id, name, slug, logo_url, description, address, contact_phone, contact_email
+    `SELECT id, name, slug, logo_url, description, address, contact_phone, contact_email,
+            cancel_cutoff_hours, reschedule_cutoff_hours
      FROM businesses WHERE slug = $1`,
     [slug]
   );

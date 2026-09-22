@@ -23,7 +23,8 @@ export default async function SettingsPage({
   const { business, hours } = await withBusinessContext(owner.businessId, async (c) => {
     const { rows: [business] } = await c.query(
       `SELECT name, business_type, logo_url, description, address, contact_phone, contact_email,
-              stripe_account_id, accepts_card, accepts_promptpay, accepts_cash, whatsapp_phone_number_id
+              stripe_account_id, accepts_card, accepts_promptpay, accepts_cash, whatsapp_phone_number_id,
+              cancel_cutoff_hours, reschedule_cutoff_hours
        FROM businesses WHERE id = $1`,
       [owner.businessId]
     );
@@ -67,6 +68,9 @@ export default async function SettingsPage({
                 acceptsCard={business.accepts_card}
                 acceptsPromptpay={business.accepts_promptpay}
                 acceptsCash={business.accepts_cash}
+                cancelCutoffHours={business.cancel_cutoff_hours}
+                rescheduleCutoffHours={business.reschedule_cutoff_hours}
+                locale={owner.locale}
               />
             )}
             {section === "whatsapp" && (

@@ -12,6 +12,7 @@ export function AddServiceForm({ locale }: { locale: Locale }) {
     null
   );
   const [paymentMode, setPaymentMode] = useState("full");
+  const [depositKind, setDepositKind] = useState<"fixed" | "percent">("fixed");
 
   // Close the form once a submission succeeds — adjusted during render
   // (comparing against the previous state), not in an effect, matching the
@@ -89,14 +90,39 @@ export function AddServiceForm({ locale }: { locale: Locale }) {
         </select>
       </div>
       {paymentMode === "deposit" && (
-        <input
-          name="depositBaht"
-          type="number"
-          min={0}
-          step="0.01"
-          placeholder={t.depositAmountThb}
-          className="rounded-lg border border-border px-3 py-2 text-sm"
-        />
+        <div className="flex flex-col gap-2">
+          <div className="flex gap-3 text-sm">
+            <label className="flex items-center gap-1.5">
+              <input type="radio" checked={depositKind === "fixed"} onChange={() => setDepositKind("fixed")} />
+              {t.depositFixed}
+            </label>
+            <label className="flex items-center gap-1.5">
+              <input type="radio" checked={depositKind === "percent"} onChange={() => setDepositKind("percent")} />
+              {t.depositPercentOption}
+            </label>
+          </div>
+          <input type="hidden" name="depositKind" value={depositKind} />
+          {depositKind === "fixed" ? (
+            <input
+              name="depositBaht"
+              type="number"
+              min={0}
+              step="0.01"
+              placeholder={t.depositAmountThb}
+              className="rounded-lg border border-border px-3 py-2 text-sm"
+            />
+          ) : (
+            <input
+              name="depositPercent"
+              type="number"
+              min={1}
+              max={100}
+              step={1}
+              placeholder={t.depositPercentPlaceholder}
+              className="rounded-lg border border-border px-3 py-2 text-sm"
+            />
+          )}
+        </div>
       )}
       <label className="text-sm text-ink-secondary">
         {t.capacitySeatsLabel}

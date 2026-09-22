@@ -111,6 +111,39 @@ export async function updatePaymentMethods(
   return { ok: true };
 }
 
+// The columns existed since 010_cancellation_policy.sql (defaults 12h/24h)
+// but had no owner-facing way to change them until now — an owner was
+// stuck with the defaults short of a raw DB edit. Bounded to a sane range
+// so a typo (e.g. 2400 instead of 24) can't silently make cancellation
+// effectively impossible or effectively unrestricted.
+export async function updateCancellationPolicy(
+  _prev: ActionResult | null,
+  formData: FormData
+): Promise<ActionResult> {
+  const owner = await requireOwner();
+
+  const rescheduleCutoffHours = Number(formData.get("rescheduleCutoffHours"));
+  const cancelCutoffHours = Number(formData.get("cancelCutoffHours"));
+
+  if (!Number.isInteger(rescheduleCutoffHours) || rescheduleCutoffHours < 0 || rescheduleCutoffHours > 720) {
+    return { ok: false, error: "Reschedule cutoff must be a whole number of hours, 0 to 720." };
+  }
+  if (!Number.isInteger(cancelCutoffHours) || cancelCutoffHours < 0 || cancelCutoffHours > 720) {
+    return { ok: false, error: "Cancel cutoff must be a whole number of hours, 0 to 720." };
+  }
+
+  await withBusinessContext(owner.businessId, (c) =>
+    c.query(
+      `UPDATE businesses SET reschedule_cutoff_hours = $1, cancel_cutoff_hours = $2 WHERE id = $3`,
+      [rescheduleCutoffHours, cancelCutoffHours, owner.businessId]
+    )
+  );
+
+  revalidatePath("/dashboard/settings");
+  revalidatePath("/book", "layout");
+  return { ok: true };
+}
+
 // owners, not businesses — dashboard language is per-owner (see
 // 028_owner_locale.sql), so this writes there directly via adminPool, the
 // same way every other owners-table touch in this codebase does (that

@@ -18,7 +18,7 @@ export default async function ServicesPage() {
     // which would have silently broken custom fields' sort_order).
     const { rows } = await c.query<Service>(
       `SELECT s.id, s.name, s.duration_minutes, s.buffer_minutes, s.price_amount,
-              s.payment_mode, s.deposit_amount, s.description, s.image_url, s.capacity,
+              s.payment_mode, s.deposit_amount, s.deposit_percent, s.description, s.image_url, s.capacity,
               (SELECT COALESCE(json_agg(
                  json_build_object('id', f.id, 'label', f.label, 'importance', f.importance)
                  ORDER BY f.sort_order

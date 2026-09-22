@@ -543,6 +543,10 @@ export const servicesText: Record<Locale, Record<string, string>> = {
     deposit: "Deposit",
     free: "Free",
     depositAmountThb: "Deposit amount (THB)",
+    depositFixed: "Fixed amount",
+    depositPercentOption: "Percent of price",
+    depositPercentPlaceholder: "Deposit percent, e.g. 50",
+    paymentMode: "Payment",
     capacitySeatsLabel: "Capacity (seats) — leave blank for a regular 1:1 service",
     capacityPlaceholder: "e.g. 10 for a class",
     adding: "Adding...",
@@ -595,6 +599,10 @@ export const servicesText: Record<Locale, Record<string, string>> = {
     deposit: "มัดจำ",
     free: "ฟรี",
     depositAmountThb: "จำนวนเงินมัดจำ (บาท)",
+    depositFixed: "จำนวนเงินคงที่",
+    depositPercentOption: "เปอร์เซ็นต์ของราคา",
+    depositPercentPlaceholder: "เปอร์เซ็นต์มัดจำ เช่น 50",
+    paymentMode: "การชำระเงิน",
     capacitySeatsLabel: "จำนวนที่นั่ง — เว้นว่างไว้หากเป็นบริการแบบตัวต่อตัว",
     capacityPlaceholder: "เช่น 10 สำหรับคลาส",
     adding: "กำลังเพิ่ม...",
@@ -638,6 +646,11 @@ export function tClassSeats(locale: Locale, seats: number): string {
 export function tMinBuffer(locale: Locale, minutes: number): string {
   if (locale === "th") return ` + เวลาพัก ${minutes} นาที`;
   return ` + ${minutes} min buffer`;
+}
+
+export function tDepositPercentLabel(locale: Locale, percent: number): string {
+  if (locale === "th") return `มัดจำ ${percent}%`;
+  return `Deposit ${percent}%`;
 }
 
 // --- Team ---
@@ -907,6 +920,65 @@ export const waitlistText: Record<Locale, Record<string, string>> = {
     removing: "กำลังลบ…",
     removeTitle: "ลบรายการรอคิวนี้?",
     removeDesc: "ลูกค้าคนนี้จะไม่ได้รับแจ้งเตือนอีกแม้มีคิวว่างในวันนี้",
+  },
+};
+
+// --- Settings: Payments tab ---
+//
+// Only this tab is translated so far — Business/Hours/WhatsApp still
+// hardcode English (see their own files). Deliberate, incremental scoping
+// rather than a half-finished whole-page pass; extend the same way when
+// those get their turn.
+
+export const paymentsSettingsText: Record<Locale, Record<string, string>> = {
+  en: {
+    stripeHeading: "Stripe",
+    connectIntro:
+      "Connect a Stripe account to accept PromptPay and card payments — money goes straight to your own account, Velure never holds it.",
+    connectStripe: "Connect Stripe",
+    connectedReady: "Connected — ready to accept payments.",
+    connectedIncomplete:
+      "Connected but incomplete — Stripe needs a bit more information before you can accept payments.",
+    finishSetup: "Finish setup",
+    waysToPay: "Ways customers can pay",
+    card: "Card",
+    promptpay: "PromptPay",
+    cash: "Cash (pay in person)",
+    needsStripe: "(needs Stripe connected above)",
+    save: "Save",
+    saving: "Saving...",
+    atLeastOneMethod: "Turn on at least one payment method, or customers won't be able to pay for anything.",
+    policyHeading: "Cancellation & reschedule policy",
+    policyIntro:
+      "How far in advance a customer can cancel or reschedule their own booking through the manage link — shown to customers before they pay.",
+    rescheduleCutoffLabel: "Reschedule cutoff (hours before appointment)",
+    cancelCutoffLabel: "Cancel cutoff (hours before appointment)",
+    savePolicy: "Save policy",
+    savingPolicy: "Saving...",
+  },
+  th: {
+    stripeHeading: "Stripe",
+    connectIntro:
+      "เชื่อมบัญชี Stripe เพื่อรับเงินผ่าน PromptPay และบัตร — เงินเข้าบัญชีร้านโดยตรง Velure ไม่ถือเงินไว้เอง",
+    connectStripe: "เชื่อม Stripe",
+    connectedReady: "เชื่อมต่อแล้ว — พร้อมรับเงิน",
+    connectedIncomplete: "เชื่อมต่อแล้วแต่ข้อมูลยังไม่ครบ — Stripe ต้องการข้อมูลเพิ่มเติมก่อนจะรับเงินได้",
+    finishSetup: "กรอกข้อมูลให้ครบ",
+    waysToPay: "ช่องทางที่ลูกค้าจ่ายเงินได้",
+    card: "บัตร",
+    promptpay: "พร้อมเพย์",
+    cash: "เงินสด (จ่ายหน้าร้าน)",
+    needsStripe: "(ต้องเชื่อม Stripe ก่อน)",
+    save: "บันทึก",
+    saving: "กำลังบันทึก...",
+    atLeastOneMethod: "ต้องเปิดอย่างน้อย 1 ช่องทาง ไม่งั้นลูกค้าจะจ่ายเงินไม่ได้เลย",
+    policyHeading: "นโยบายยกเลิก/เลื่อนนัด",
+    policyIntro:
+      "ลูกค้าต้องยกเลิกหรือเลื่อนนัดของตัวเองผ่านลิงก์จัดการคิวล่วงหน้ากี่ชั่วโมง — ลูกค้าจะเห็นนโยบายนี้ก่อนจ่ายเงิน",
+    rescheduleCutoffLabel: "เลื่อนนัดได้ล่วงหน้าอย่างน้อย (ชั่วโมง)",
+    cancelCutoffLabel: "ยกเลิกได้ล่วงหน้าอย่างน้อย (ชั่วโมง)",
+    savePolicy: "บันทึกนโยบาย",
+    savingPolicy: "กำลังบันทึก...",
   },
 };
 

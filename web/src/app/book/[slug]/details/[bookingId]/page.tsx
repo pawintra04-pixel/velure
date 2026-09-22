@@ -26,7 +26,7 @@ export default async function BookingDetailsPage({
   const booking = await withBusinessContext(business.id, async (c) => {
     const { rows: [row] } = await c.query(
       `SELECT b.id, b.status, b.amount, b.start_time, b.hold_expires_at, b.service_id,
-              s.name AS service_name, st.name AS staff_name
+              s.name AS service_name, s.payment_mode, st.name AS staff_name
        FROM bookings b
        JOIN services s ON s.id = b.service_id
        JOIN staff st ON st.id = b.staff_id
@@ -110,10 +110,16 @@ export default async function BookingDetailsPage({
             </div>
             {booking.amount > 0 && (
               <div className="flex justify-between gap-4 border-t border-border py-1.5 pt-4">
-                <span className="text-ink-muted">Amount due</span>
+                <span className="text-ink-muted">
+                  {booking.payment_mode === "deposit" ? "Deposit due now" : "Amount due"}
+                </span>
                 <span className="text-right font-medium">{formatBaht(booking.amount)}</span>
               </div>
             )}
+            <p className="border-t border-border pt-3 text-xs text-ink-muted">
+              Reschedule up to {business.reschedule_cutoff_hours}h and cancel up to{" "}
+              {business.cancel_cutoff_hours}h before your appointment — see your confirmation for the manage link.
+            </p>
           </div>
 
           <DetailsForm

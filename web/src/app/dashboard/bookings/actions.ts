@@ -9,6 +9,7 @@ import { isStaffFreeForRange, isSlotConflictError } from "@/lib/staff-availabili
 import { stripe } from "@/lib/stripe";
 import { notify } from "@/lib/notifications";
 import { checkWaitlistForCancelledSlot } from "@/lib/waitlist";
+import { effectiveDepositAmount } from "@/lib/deposit";
 
 export type ManualBookingResult = { ok: true } | { ok: false; error: string };
 
@@ -220,8 +221,9 @@ export async function createManualBooking(
         price_amount: number;
         payment_mode: string;
         deposit_amount: number | null;
+        deposit_percent: number | null;
       }>(
-        `SELECT duration_minutes, buffer_minutes, price_amount, payment_mode, deposit_amount
+        `SELECT duration_minutes, buffer_minutes, price_amount, payment_mode, deposit_amount, deposit_percent
          FROM services WHERE id = $1`,
         [serviceId]
       );
@@ -241,7 +243,11 @@ export async function createManualBooking(
         : service.payment_mode === "free"
           ? 0
           : service.payment_mode === "deposit"
-            ? (service.deposit_amount ?? 0)
+            ? effectiveDepositAmount({
+                priceAmount: service.price_amount,
+                depositAmount: service.deposit_amount,
+                depositPercent: service.deposit_percent,
+              })
             : service.price_amount;
 
       const { rows: [customer] } = await c.query(

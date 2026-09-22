@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import { getBusinessBySlug } from "@/lib/business";
 import { withBusinessContext } from "@/db/client";
 import { getAvailableSlots } from "@/lib/availability";
+import { formatBaht } from "@/lib/money";
+import { effectiveDepositAmount } from "@/lib/deposit";
 import { BookingWizard } from "./BookingWizard";
 import { ClassSessionPicker } from "./ClassSessionPicker";
 import { BookingHeader } from "@/components/booking/BookingHeader";
@@ -25,7 +27,7 @@ export default async function ServiceBookingPage({
 
   const service = await withBusinessContext(businessId, async (c) => {
     const { rows: [row] } = await c.query(
-      `SELECT id, name, duration_minutes, price_amount, currency, payment_mode, deposit_amount, description, image_url, capacity
+      `SELECT id, name, duration_minutes, price_amount, currency, payment_mode, deposit_amount, deposit_percent, description, image_url, capacity
        FROM services WHERE id = $1`,
       [serviceId]
     );
@@ -72,6 +74,32 @@ export default async function ServiceBookingPage({
             {service.description && (
               <p className="mt-3 whitespace-pre-line text-sm text-ink-secondary">{service.description}</p>
             )}
+            <div className="mt-4 rounded-xl border border-border p-3 text-sm text-ink-secondary">
+              {service.payment_mode === "free" ? (
+                <div>Free — no payment required.</div>
+              ) : service.payment_mode === "deposit" ? (
+                <div>
+                  Deposit due now:{" "}
+                  <strong className="text-ink">
+                    {formatBaht(
+                      effectiveDepositAmount({
+                        priceAmount: service.price_amount,
+                        depositAmount: service.deposit_amount,
+                        depositPercent: service.deposit_percent,
+                      })
+                    )}
+                  </strong>
+                  {service.deposit_percent != null ? ` (${service.deposit_percent}%)` : ""} of the full price{" "}
+                  {formatBaht(service.price_amount)}, the rest is paid on arrival.
+                </div>
+              ) : (
+                <div>Full payment due now: <strong className="text-ink">{formatBaht(service.price_amount)}</strong></div>
+              )}
+              <div className="mt-1 text-xs text-ink-muted">
+                Reschedule up to {business.reschedule_cutoff_hours}h and cancel up to{" "}
+                {business.cancel_cutoff_hours}h before your appointment.
+              </div>
+            </div>
           </div>
 
           {isClass ? (

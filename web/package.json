@@ -41,6 +41,7 @@
     "unrs-resolver@1.12.2": true,
     "@embedded-postgres/darwin-x64@18.4.0-beta.17": true,
     "esbuild@0.28.2": true,
-    "fsevents@2.3.3": true
+    "fsevents@2.3.3": true,
+    "@embedded-postgres/darwin-arm64@18.4.0-beta.17": true
   }
 }

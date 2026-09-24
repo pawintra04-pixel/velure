@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { logOut } from "@/app/login/actions";
+import { LanguageToggle } from "@/app/dashboard/settings/LanguageToggle";
 import { navLabels, type Locale } from "@/lib/i18n";
 
 function Icon({ path }: { path: string }) {
@@ -119,6 +120,11 @@ function NavLinks({ pathname, setup, locale }: { pathname: string; setup: NavSet
 function AccountFooter({ ownerEmail, locale }: { ownerEmail: string; locale: Locale }) {
   return (
     <div className="mt-auto flex flex-col gap-2 border-t border-white/10 pt-4">
+      {/* Always reachable, not buried in Settings — shops with foreign
+          staff/partners switch back and forth on the same account. */}
+      <div className="px-2">
+        <LanguageToggle locale={locale} onDark />
+      </div>
       <div className="truncate px-2 text-xs text-midnight-ink-muted">{ownerEmail}</div>
       <form action={logOut}>
         <button

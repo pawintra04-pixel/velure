@@ -2,18 +2,21 @@
 
 import { useActionState } from "react";
 import { customerLogIn, type AuthResult } from "../customer-auth-actions";
+import type { Locale } from "@/lib/i18n";
+import { publicText } from "@/lib/i18n-public";
 
-export function LoginForm({ slug }: { slug: string }) {
+export function LoginForm({ slug, locale }: { slug: string; locale: Locale }) {
+  const t = publicText[locale];
   const [state, formAction, pending] = useActionState<AuthResult | null, FormData>(customerLogIn, null);
 
   return (
     <form action={formAction} className="mt-6 flex flex-col gap-3">
       <input type="hidden" name="slug" value={slug} />
-      <input name="email" type="email" placeholder="Email" className="rounded-lg border border-border px-4 py-3 text-sm" />
+      <input name="email" type="email" placeholder={t.email} className="rounded-lg border border-border px-4 py-3 text-sm" />
       <input
         name="password"
         type="password"
-        placeholder="Password"
+        placeholder={t.password}
         className="rounded-lg border border-border px-4 py-3 text-sm"
       />
       {state && !state.ok && <div className="text-sm text-[#d03b3b]">{state.error}</div>}
@@ -22,7 +25,7 @@ export function LoginForm({ slug }: { slug: string }) {
         disabled={pending}
         className="rounded-xl bg-sunburst py-3 text-sm font-medium text-ink disabled:opacity-50"
       >
-        {pending ? "Logging in..." : "Log in"}
+        {pending ? t.loggingIn : t.logIn}
       </button>
     </form>
   );

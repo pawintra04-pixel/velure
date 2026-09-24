@@ -3,16 +3,21 @@
 import { useMemo, useState } from "react";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useElements, useStripe } from "@stripe/react-stripe-js";
+import type { Locale } from "@/lib/i18n";
+import { publicText } from "@/lib/i18n-public";
 
 export function CardPaymentForm({
   clientSecret,
   stripeAccountId,
   bookingId,
+  locale,
 }: {
   clientSecret: string;
   stripeAccountId: string;
   bookingId: string;
+  locale: Locale;
 }) {
+  const t = publicText[locale];
   // useMemo, not module-level: this page can serve different businesses
   // (different connected accounts) across loads, and loadStripe's second
   // argument fixes the account for that Stripe.js instance — a single
@@ -28,17 +33,18 @@ export function CardPaymentForm({
   }, [stripeAccountId]);
 
   if (!stripePromise) {
-    return <div className="mt-6 text-sm text-[#d03b3b]">Card payments are not configured.</div>;
+    return <div className="mt-6 text-sm text-[#d03b3b]">{t.cardNotConfigured}</div>;
   }
 
   return (
-    <Elements stripe={stripePromise} options={{ clientSecret }}>
-      <CardForm bookingId={bookingId} />
+    <Elements stripe={stripePromise} options={{ clientSecret, locale }}>
+      <CardForm bookingId={bookingId} locale={locale} />
     </Elements>
   );
 }
 
-function CardForm({ bookingId }: { bookingId: string }) {
+function CardForm({ bookingId, locale }: { bookingId: string; locale: Locale }) {
+  const t = publicText[locale];
   const stripe = useStripe();
   const elements = useElements();
   const [submitting, setSubmitting] = useState(false);
@@ -60,7 +66,7 @@ function CardForm({ bookingId }: { bookingId: string }) {
     // Only reached if confirmation fails synchronously (e.g. validation) —
     // on success Stripe redirects the browser to return_url itself.
     if (confirmError) {
-      setError(confirmError.message ?? "Payment failed. Please try again.");
+      setError(confirmError.message ?? t.paymentFailed);
       setSubmitting(false);
     }
   }
@@ -74,7 +80,7 @@ function CardForm({ bookingId }: { bookingId: string }) {
         disabled={!stripe || submitting}
         className="rounded-xl bg-sunburst py-2.5 text-sm font-medium text-ink disabled:opacity-50"
       >
-        {submitting ? "Processing..." : "Pay now"}
+        {submitting ? t.processing : t.payNow}
       </button>
     </form>
   );

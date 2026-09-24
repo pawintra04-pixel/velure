@@ -6,6 +6,9 @@ import { withBusinessContext } from "@/db/client";
 import { formatBaht } from "@/lib/money";
 import { BookingHeader } from "@/components/booking/BookingHeader";
 import { customerLogOut } from "../customer-auth-actions";
+import type { Locale } from "@/lib/i18n";
+import { getVisitorLocale } from "@/lib/visitor-locale";
+import { publicText, intlLocale, tStatus } from "@/lib/i18n-public";
 
 const STATUS_STYLE: Record<string, string> = {
   CONFIRMED: "bg-[#0ca30c]/10 text-[#0ca30c]",
@@ -20,8 +23,8 @@ const STATUS_STYLE: Record<string, string> = {
   PARTIALLY_REFUNDED: "bg-[#fab219]/20 text-[#8a5a00]",
 };
 
-function formatTime(iso: string): string {
-  return new Intl.DateTimeFormat("en-US", {
+function formatTime(iso: string, locale: Locale): string {
+  return new Intl.DateTimeFormat(intlLocale(locale), {
     timeZone: "Asia/Bangkok",
     dateStyle: "medium",
     timeStyle: "short",
@@ -32,6 +35,8 @@ export default async function CustomerAccountPage({ params }: { params: Promise<
   const { slug } = await params;
   const business = await getBusinessBySlug(slug);
   if (!business) notFound();
+  const locale = await getVisitorLocale();
+  const t = publicText[locale];
 
   const customer = await requireCustomer(slug, business.id);
 
@@ -57,7 +62,7 @@ export default async function CustomerAccountPage({ params }: { params: Promise<
       <div className="mx-auto max-w-2xl px-6 py-12 lg:px-10">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-semibold">My bookings</h1>
+            <h1 className="text-2xl font-semibold">{t.myBookings}</h1>
             <p className="mt-1 text-sm text-ink-secondary">{customer.name} · {customer.email}</p>
           </div>
           <form action={customerLogOut}>
@@ -66,7 +71,7 @@ export default async function CustomerAccountPage({ params }: { params: Promise<
               type="submit"
               className="rounded-full border border-border px-3 py-1.5 text-sm text-ink-secondary hover:bg-page"
             >
-              Log out
+              {t.logOut}
             </button>
           </form>
         </div>
@@ -74,9 +79,9 @@ export default async function CustomerAccountPage({ params }: { params: Promise<
         <div className="mt-8 flex flex-col gap-3">
           {bookings.length === 0 && (
             <div className="rounded-2xl border border-border bg-surface p-6 text-sm text-ink-muted">
-              No bookings yet —{" "}
+              {t.noBookingsYet}{" "}
               <Link href={`/book/${slug}`} className="text-accent underline">
-                book something
+                {t.bookSomething}
               </Link>
               .
             </div>
@@ -90,7 +95,7 @@ export default async function CustomerAccountPage({ params }: { params: Promise<
               <div className="min-w-0">
                 <div className="truncate font-medium">{b.service_name}</div>
                 <div className="truncate text-sm text-ink-muted">
-                  {b.staff_name} · {formatTime(b.start_time)} · {formatBaht(b.amount)}
+                  {b.staff_name} · {formatTime(b.start_time, locale)} · {formatBaht(b.amount)}
                 </div>
               </div>
               <span
@@ -98,7 +103,7 @@ export default async function CustomerAccountPage({ params }: { params: Promise<
                   STATUS_STYLE[b.status] ?? "bg-ink/5 text-ink-muted"
                 }`}
               >
-                {b.status.replace("_", " ")}
+                {tStatus(locale, b.status)}
               </span>
             </Link>
           ))}

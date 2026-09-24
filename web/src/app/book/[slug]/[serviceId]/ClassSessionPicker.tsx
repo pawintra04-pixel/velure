@@ -3,6 +3,8 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { reserveClassSeat } from "../../actions";
+import type { Locale } from "@/lib/i18n";
+import { publicText, intlLocale, tSpotsLeft } from "@/lib/i18n-public";
 
 type Session = {
   id: string;
@@ -12,8 +14,8 @@ type Session = {
   staff_name: string;
 };
 
-function formatSessionTime(iso: string): string {
-  return new Intl.DateTimeFormat("en-US", {
+function formatSessionTime(iso: string, locale: Locale): string {
+  return new Intl.DateTimeFormat(intlLocale(locale), {
     timeZone: "Asia/Bangkok",
     dateStyle: "medium",
     timeStyle: "short",
@@ -25,12 +27,15 @@ export function ClassSessionPicker({
   businessId,
   sessions,
   source,
+  locale,
 }: {
   slug: string;
   businessId: string;
   sessions: Session[];
   source: string | null;
+  locale: Locale;
 }) {
+  const t = publicText[locale];
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [reservingId, setReservingId] = useState<string | null>(null);
@@ -45,10 +50,10 @@ export function ClassSessionPicker({
         setReservingId(null);
         setError(
           result.reason === "class_full"
-            ? "That session just filled up — please pick another."
+            ? t.classFull
             : result.reason === "too_many_holds"
-              ? "You already have a couple of reservations in progress — complete or let one expire before reserving another."
-              : "Something went wrong. Please try again."
+              ? t.tooManyHolds
+              : t.genericError
         );
         return;
       }
@@ -58,9 +63,9 @@ export function ClassSessionPicker({
 
   return (
     <div className="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-6">
-      <div className="text-sm text-ink-secondary">Upcoming sessions</div>
+      <div className="text-sm text-ink-secondary">{t.upcomingSessions}</div>
       {sessions.length === 0 && (
-        <div className="text-sm text-ink-muted">No upcoming sessions scheduled yet.</div>
+        <div className="text-sm text-ink-muted">{t.noUpcomingSessions}</div>
       )}
       {sessions.map((s) => {
         const seatsLeft = s.capacity - s.seats_booked;
@@ -71,9 +76,9 @@ export function ClassSessionPicker({
             className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border px-5 py-4"
           >
             <div>
-              <div className="text-sm font-medium">{formatSessionTime(s.start_time)}</div>
+              <div className="text-sm font-medium">{formatSessionTime(s.start_time, locale)}</div>
               <div className="mt-1 text-xs text-ink-muted">
-                {s.staff_name} · {isFull ? "Full" : `${seatsLeft} of ${s.capacity} spots left`}
+                {s.staff_name} · {isFull ? t.full : tSpotsLeft(locale, seatsLeft, s.capacity)}
               </div>
             </div>
             <button
@@ -81,7 +86,7 @@ export function ClassSessionPicker({
               disabled={isFull || isPending}
               className="rounded-xl border border-border px-4 py-2.5 text-sm disabled:opacity-50"
             >
-              {reservingId === s.id ? "Reserving..." : isFull ? "Full" : "Reserve a seat"}
+              {reservingId === s.id ? t.reserving : isFull ? t.full : t.reserveSeat}
             </button>
           </div>
         );

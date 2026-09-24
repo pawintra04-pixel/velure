@@ -1,5 +1,6 @@
-// Owner dashboard translations only — the public booking pages stay
-// English (see 028_owner_locale.sql's comment for why). Deliberately not a
+// Owner dashboard translations only — the public booking pages and the
+// login/signup screens use lib/i18n-public.ts, keyed by the visitor's own
+// EN / ไทย choice rather than the owner's saved preference. Deliberately not a
 // generic framework (next-intl, etc.): this is one language pair on one
 // section of the app, so a plain typed dictionary plus a few formatter
 // functions for pluralized/dynamic strings covers it without adding a

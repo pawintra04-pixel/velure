@@ -7,6 +7,8 @@ import { restorePackageSession } from "@/lib/packages";
 import { notify, clearReminderRecord } from "@/lib/notifications";
 import { isSlotConflictError } from "@/lib/staff-availability";
 import { checkWaitlistForCancelledSlot } from "@/lib/waitlist";
+import { getVisitorLocale } from "@/lib/visitor-locale";
+import { publicText } from "@/lib/i18n-public";
 
 type PolicyCheck = {
   businessId: string;
@@ -60,10 +62,11 @@ export async function fetchRescheduleSlots(bookingId: string, dateISO: string): 
 export type ManageActionResult = { ok: true } | { ok: false; error: string };
 
 export async function cancelBooking(bookingId: string): Promise<ManageActionResult> {
+  const t = publicText[await getVisitorLocale()];
   const check = await loadPolicyCheck(bookingId);
-  if (!check) return { ok: false, error: "Booking not found." };
+  if (!check) return { ok: false, error: t.errBookingNotFound };
   if (check.status !== "CONFIRMED") {
-    return { ok: false, error: "This booking can no longer be cancelled." };
+    return { ok: false, error: t.errCannotCancel };
   }
   // Re-check the cutoff server-side even though the page only shows the
   // button when it's allowed — the page could be stale by the time it's
@@ -94,7 +97,7 @@ export async function cancelBooking(bookingId: string): Promise<ManageActionResu
   // this booking's status between loadPolicyCheck and this UPDATE — never
   // report success unless the write actually affected a row.
   if (cancelled === 0) {
-    return { ok: false, error: "This booking was already changed — please refresh and try again." };
+    return { ok: false, error: t.errAlreadyChanged };
   }
   // Fire-and-forget, after the cancellation has already committed — an
   // email failure must never undo or block a real cancellation.
@@ -108,16 +111,17 @@ export async function rescheduleBooking(
   newStartTime: string,
   newEndTime: string
 ): Promise<ManageActionResult> {
+  const t = publicText[await getVisitorLocale()];
   const check = await loadPolicyCheck(bookingId);
-  if (!check) return { ok: false, error: "Booking not found." };
+  if (!check) return { ok: false, error: t.errBookingNotFound };
   if (check.status !== "CONFIRMED") {
-    return { ok: false, error: "This booking can no longer be rescheduled." };
+    return { ok: false, error: t.errCannotReschedule };
   }
   // A class booking's time belongs to its session, not to this individual
   // attendee — moving it would mean moving everyone else registered too.
   // Cancel and re-register for a different session instead.
   if (check.classSessionId) {
-    return { ok: false, error: "Class bookings can't be rescheduled — cancel and book a different session instead." };
+    return { ok: false, error: t.classNoReschedule };
   }
   if (hoursUntil(check.startTime) < check.rescheduleCutoffHours) {
     return {
@@ -138,7 +142,7 @@ export async function rescheduleBooking(
     // and this UPDATE means 0 rows affected even though no error was
     // thrown.
     if (!result.rowCount) {
-      return { ok: false, error: "This booking was already changed — please refresh and try again." };
+      return { ok: false, error: t.errAlreadyChanged };
     }
     // Clear any prior reminder record before notifying — otherwise a
     // booking reminded once for its old time would never be reminded
@@ -150,9 +154,9 @@ export async function rescheduleBooking(
     // The overlap EXCLUDE constraint applies to UPDATEs too, not just
     // INSERTs — a slot picked a moment ago can still lose a race here.
     if (isSlotConflictError(err)) {
-      return { ok: false, error: "That time was just taken — please pick another." };
+      return { ok: false, error: t.errTimeTaken };
     }
     console.error("rescheduleBooking failed", err);
-    return { ok: false, error: "Something went wrong. Please try again." };
+    return { ok: false, error: t.genericError };
   }
 }

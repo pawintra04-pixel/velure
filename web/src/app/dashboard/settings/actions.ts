@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireOwner } from "@/lib/auth";
 import { withBusinessContext, adminPool } from "@/db/client";
+import { writeVisitorLocale } from "@/lib/visitor-locale";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -161,6 +162,9 @@ export async function updateLocale(
   }
 
   await adminPool.query(`UPDATE owners SET locale = $1 WHERE id = $2`, [locale, owner.ownerId]);
+  // Keep the logged-out screens (login page, booking preview) in the same
+  // language the owner just picked.
+  await writeVisitorLocale(locale);
 
   revalidatePath("/dashboard", "layout");
   return { ok: true };

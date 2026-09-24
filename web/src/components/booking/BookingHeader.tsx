@@ -1,5 +1,8 @@
 import Link from "next/link";
 import { getCurrentCustomer } from "@/lib/customer-auth";
+import { getVisitorLocale } from "@/lib/visitor-locale";
+import { publicText } from "@/lib/i18n-public";
+import { LocaleSwitch } from "@/components/locale/LocaleSwitch";
 
 /**
  * Persistent header across every customer-facing /book/* page (choose
@@ -21,7 +24,8 @@ export async function BookingHeader({
   businessId: string;
   logoUrl?: string | null;
 }) {
-  const customer = await getCurrentCustomer();
+  const [customer, locale] = await Promise.all([getCurrentCustomer(), getVisitorLocale()]);
+  const t = publicText[locale];
   const loggedInHere = customer?.businessId === businessId;
 
   return (
@@ -34,12 +38,15 @@ export async function BookingHeader({
           )}
           <span className="text-lg font-semibold tracking-tight">{businessName}</span>
         </Link>
-        <Link
-          href={loggedInHere ? `/book/${slug}/account` : `/book/${slug}/login`}
-          className="text-sm text-ink-secondary underline-offset-2 hover:underline"
-        >
-          {loggedInHere ? "My bookings" : "Log in"}
-        </Link>
+        <div className="flex shrink-0 items-center gap-3">
+          <LocaleSwitch locale={locale} />
+          <Link
+            href={loggedInHere ? `/book/${slug}/account` : `/book/${slug}/login`}
+            className="text-sm text-ink-secondary underline-offset-2 hover:underline"
+          >
+            {loggedInHere ? t.myBookings : t.logIn}
+          </Link>
+        </div>
       </div>
     </header>
   );

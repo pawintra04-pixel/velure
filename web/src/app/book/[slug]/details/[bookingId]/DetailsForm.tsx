@@ -3,16 +3,12 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { completeBookingDetails } from "../../../actions";
+import type { Locale } from "@/lib/i18n";
+import { publicText } from "@/lib/i18n-public";
 
 type CustomField = { id: string; label: string; importance: "optional" | "important" | "required" };
 
 type PaymentMethod = "promptpay" | "card" | "cash";
-
-const METHOD_LABEL: Record<PaymentMethod, string> = {
-  promptpay: "PromptPay",
-  card: "Card",
-  cash: "Cash (pay in person)",
-};
 
 export function DetailsForm({
   businessId,
@@ -20,13 +16,21 @@ export function DetailsForm({
   requiresPayment,
   availableMethods,
   customFields,
+  locale,
 }: {
   businessId: string;
   bookingId: string;
   requiresPayment: boolean;
   availableMethods: PaymentMethod[];
   customFields: CustomField[];
+  locale: Locale;
 }) {
+  const t = publicText[locale];
+  const METHOD_LABEL: Record<PaymentMethod, string> = {
+    promptpay: t.methodPromptpay,
+    card: t.methodCard,
+    cash: t.methodCash,
+  };
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [name, setName] = useState("");
@@ -58,11 +62,11 @@ export function DetailsForm({
 
       if (!result.ok) {
         if (result.reason === "hold_expired") {
-          setError("Your reservation expired while filling this in. Please pick a new time.");
+          setError(t.holdExpiredWhileFilling);
         } else if (result.reason === "invalid_input") {
-          setError("Please fill in all required fields.");
+          setError(t.fillRequired);
         } else {
-          setError("Something went wrong. Please try again.");
+          setError(t.genericError);
         }
         return;
       }
@@ -76,22 +80,22 @@ export function DetailsForm({
   return (
     <div className="flex h-fit flex-col gap-8 rounded-2xl border border-border bg-surface p-8">
       <div className="flex flex-col gap-3.5">
-        <div className="text-sm font-medium text-ink">Your details</div>
+        <div className="text-sm font-medium text-ink">{t.yourDetails}</div>
         <input
           className="rounded-lg border border-border px-4 py-3 text-sm"
-          placeholder="Name"
+          placeholder={t.name}
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
         <input
           className="rounded-lg border border-border px-4 py-3 text-sm"
-          placeholder="Phone number"
+          placeholder={t.phoneNumber}
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
         />
         <input
           className="rounded-lg border border-border px-4 py-3 text-sm"
-          placeholder="Email"
+          placeholder={t.email}
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
@@ -107,7 +111,7 @@ export function DetailsForm({
                 {f.importance === "required" && <span className="text-[#d03b3b]">*</span>}
                 {f.importance === "important" && (
                   <span className="rounded-full bg-[#fdf3e6] px-2 py-0.5 text-xs text-[#a8681c]">
-                    Important
+                    {t.important}
                   </span>
                 )}
               </span>
@@ -123,7 +127,7 @@ export function DetailsForm({
 
       {requiresPayment && availableMethods.length > 0 && (
         <div className="flex flex-col gap-3 border-t border-border pt-8">
-          <div className="text-sm font-medium text-ink">Pay with</div>
+          <div className="text-sm font-medium text-ink">{t.payWith}</div>
           <div className="flex gap-3">
             {availableMethods.map((method) => (
               <button
@@ -145,8 +149,7 @@ export function DetailsForm({
 
       {requiresPayment && availableMethods.length === 0 && (
         <div className="rounded-xl border border-[#d03b3b]/30 bg-[#fdecec] px-4 py-3 text-sm text-[#d03b3b]">
-          This business hasn&apos;t set up a way to accept payment yet — please contact them
-          directly to book this.
+          {t.noPaymentMethod}
         </div>
       )}
 
@@ -165,10 +168,10 @@ export function DetailsForm({
           className="rounded-xl bg-sunburst py-3.5 text-sm font-medium text-ink disabled:opacity-50"
         >
           {isPending
-            ? "Processing..."
+            ? t.processing
             : requiresPayment && paymentMethod !== "cash"
-              ? "Continue to payment"
-              : "Confirm booking"}
+              ? t.continueToPayment
+              : t.confirmBooking}
         </button>
       </div>
     </div>

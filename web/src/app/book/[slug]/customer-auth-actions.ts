@@ -9,17 +9,20 @@ import {
   createCustomerSession,
   clearCustomerSession,
 } from "@/lib/customer-auth";
+import { getVisitorLocale } from "@/lib/visitor-locale";
+import { publicText } from "@/lib/i18n-public";
 
 export type AuthResult = { ok: true } | { ok: false; error: string };
 
 export async function customerLogIn(_prev: AuthResult | null, formData: FormData): Promise<AuthResult> {
+  const t = publicText[await getVisitorLocale()];
   const slug = String(formData.get("slug") ?? "");
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
 
   const business = await getBusinessBySlug(slug);
   if (!business || !email || !password) {
-    return { ok: false, error: "Email and password are required." };
+    return { ok: false, error: t.errEmailPasswordRequired };
   }
 
   const { rows: [customer] } = await adminPool.query(
@@ -31,7 +34,7 @@ export async function customerLogIn(_prev: AuthResult | null, formData: FormData
   // "wrong password" — distinguishing them lets an attacker enumerate
   // which emails have booked here.
   if (!customer || !customer.password_hash || !(await verifyPassword(password, customer.password_hash))) {
-    return { ok: false, error: "Invalid email or password." };
+    return { ok: false, error: t.errInvalidLogin };
   }
 
   await createCustomerSession(customer.id);
@@ -39,6 +42,7 @@ export async function customerLogIn(_prev: AuthResult | null, formData: FormData
 }
 
 export async function customerSignUp(_prev: AuthResult | null, formData: FormData): Promise<AuthResult> {
+  const t = publicText[await getVisitorLocale()];
   const slug = String(formData.get("slug") ?? "");
   const name = String(formData.get("name") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
@@ -47,10 +51,10 @@ export async function customerSignUp(_prev: AuthResult | null, formData: FormDat
 
   const business = await getBusinessBySlug(slug);
   if (!business || !name || !email || !password) {
-    return { ok: false, error: "Name, email, and password are required." };
+    return { ok: false, error: t.errNameEmailPasswordRequired };
   }
   if (password.length < 8) {
-    return { ok: false, error: "Password must be at least 8 characters." };
+    return { ok: false, error: t.errPasswordShort };
   }
 
   const { rows: [existing] } = await adminPool.query(
@@ -58,7 +62,7 @@ export async function customerSignUp(_prev: AuthResult | null, formData: FormDat
     [business.id, email]
   );
   if (existing?.password_hash) {
-    return { ok: false, error: "An account with that email already exists. Log in instead." };
+    return { ok: false, error: t.errEmailTakenLogIn };
   }
 
   const passwordHash = await hashPassword(password);
@@ -83,10 +87,10 @@ export async function customerSignUp(_prev: AuthResult | null, formData: FormDat
     }
   } catch (err) {
     if ((err as { code?: string }).code === "23505") {
-      return { ok: false, error: "That phone number is already on file with a different email." };
+      return { ok: false, error: t.errPhoneOnFile };
     }
     console.error("customerSignUp failed", err);
-    return { ok: false, error: "Something went wrong. Please try again." };
+    return { ok: false, error: t.genericError };
   }
 
   await createCustomerSession(customerId);

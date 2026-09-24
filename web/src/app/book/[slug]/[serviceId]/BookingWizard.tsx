@@ -4,24 +4,29 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { fetchSlots, createQuickHold, joinWaitlist } from "../../actions";
 import type { Slot } from "@/lib/availability";
+import type { Locale } from "@/lib/i18n";
+import { publicText, intlLocale, type PublicText } from "@/lib/i18n-public";
 
-function nextDays(n: number): { iso: string; weekday: string; day: string }[] {
+function nextDays(n: number, locale: Locale): { iso: string; weekday: string; day: string }[] {
   const days = [];
   for (let i = 0; i < n; i++) {
     const d = new Date();
     d.setDate(d.getDate() + i);
     const iso = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(d);
-    const weekday = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Bangkok", weekday: "short" })
-      .format(d)
-      .slice(0, 2);
+    // Seven columns must fit a phone: Thai "narrow" gives จ / อ / พฤ, while
+    // English short names are trimmed to two letters ("Mon" -> "Mo").
+    const weekday =
+      locale === "th"
+        ? new Intl.DateTimeFormat("th-TH", { timeZone: "Asia/Bangkok", weekday: "narrow" }).format(d)
+        : new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Bangkok", weekday: "short" }).format(d).slice(0, 2);
     const day = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Bangkok", day: "numeric" }).format(d);
     days.push({ iso, weekday, day });
   }
   return days;
 }
 
-function formatSlotTime(iso: string): string {
-  return new Intl.DateTimeFormat("en-US", {
+function formatSlotTime(iso: string, locale: Locale): string {
+  return new Intl.DateTimeFormat(intlLocale(locale), {
     timeZone: "Asia/Bangkok",
     hour: "2-digit",
     minute: "2-digit",
@@ -38,11 +43,11 @@ function hourInBangkok(iso: string): number {
 
 // Grouped into periods rather than one flat grid — reads as a proper
 // schedule rather than a bank of interchangeable buttons.
-function groupByPeriod(slots: Slot[]): { label: string; slots: Slot[] }[] {
+function groupByPeriod(slots: Slot[], t: PublicText): { label: string; slots: Slot[] }[] {
   const groups = [
-    { label: "Morning", slots: [] as Slot[] },
-    { label: "Afternoon", slots: [] as Slot[] },
-    { label: "Evening", slots: [] as Slot[] },
+    { label: t.morning, slots: [] as Slot[] },
+    { label: t.afternoon, slots: [] as Slot[] },
+    { label: t.evening, slots: [] as Slot[] },
   ];
   for (const slot of slots) {
     const hour = hourInBangkok(slot.startTime);
@@ -60,10 +65,12 @@ function JoinWaitlistForm({
   businessId,
   serviceId,
   targetDate,
+  t,
 }: {
   businessId: string;
   serviceId: string;
   targetDate: string;
+  t: PublicText;
 }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -81,8 +88,8 @@ function JoinWaitlistForm({
         setPending(false);
         setResult(
           r.ok
-            ? { ok: true, message: "You're on the list — we'll let you know if a spot opens on this day." }
-            : { ok: false, message: r.error }
+            ? { ok: true, message: t.waitlistJoined }
+            : { ok: false, message: t.nameAndPhoneRequired }
         );
         if (r.ok) {
           setName("");
@@ -92,7 +99,7 @@ function JoinWaitlistForm({
       })
       .catch(() => {
         setPending(false);
-        setResult({ ok: false, message: "Something went wrong. Please try again." });
+        setResult({ ok: false, message: t.genericError });
       });
   }
 
@@ -103,13 +110,13 @@ function JoinWaitlistForm({
   if (!open) {
     return (
       <div className="mt-3">
-        <div className="text-sm text-ink-muted">No available times on this day</div>
+        <div className="text-sm text-ink-muted">{t.noTimesThisDay}</div>
         <button
           type="button"
           onClick={() => setOpen(true)}
           className="mt-2 rounded-full border border-border px-4 py-2 text-sm text-ink-secondary hover:border-sunburst hover:text-ink"
         >
-          Notify me if a spot opens
+          {t.notifyMe}
         </button>
       </div>
     );
@@ -117,11 +124,11 @@ function JoinWaitlistForm({
 
   return (
     <form onSubmit={submit} className="mt-3 flex flex-col gap-2 rounded-xl border border-border p-4">
-      <div className="text-sm text-ink">We&apos;ll text or email you if someone cancels on this day.</div>
+      <div className="text-sm text-ink">{t.waitlistIntro}</div>
       <input
         type="text"
         required
-        placeholder="Your name"
+        placeholder={t.yourName}
         value={name}
         onChange={(e) => setName(e.target.value)}
         className="rounded-lg border border-border px-3 py-2 text-sm"
@@ -129,14 +136,14 @@ function JoinWaitlistForm({
       <input
         type="tel"
         required
-        placeholder="Phone number"
+        placeholder={t.phoneNumber}
         value={phone}
         onChange={(e) => setPhone(e.target.value)}
         className="rounded-lg border border-border px-3 py-2 text-sm"
       />
       <input
         type="email"
-        placeholder="Email (optional)"
+        placeholder={t.emailOptional}
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         className="rounded-lg border border-border px-3 py-2 text-sm"
@@ -146,7 +153,7 @@ function JoinWaitlistForm({
         disabled={pending}
         className="rounded-full bg-sunburst px-4 py-2 text-sm font-medium text-ink disabled:opacity-50"
       >
-        {pending ? "Joining..." : "Join waitlist"}
+        {pending ? t.joining : t.joinWaitlist}
       </button>
       {result && !result.ok && <div className="text-sm text-[#d03b3b]">{result.message}</div>}
     </form>
@@ -160,6 +167,7 @@ export function BookingWizard({
   initialDate,
   initialSlots,
   source,
+  locale,
 }: {
   slug: string;
   businessId: string;
@@ -167,17 +175,19 @@ export function BookingWizard({
   initialDate: string;
   initialSlots: Slot[];
   source: string | null;
+  locale: Locale;
 }) {
+  const t = publicText[locale];
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const days = useMemo(() => nextDays(7), []);
+  const days = useMemo(() => nextDays(7, locale), [locale]);
 
   const [selectedDate, setSelectedDate] = useState(initialDate);
   const [slots, setSlots] = useState(initialSlots);
   const [reservingSlot, setReservingSlot] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const periods = useMemo(() => groupByPeriod(slots), [slots]);
+  const periods = useMemo(() => groupByPeriod(slots, t), [slots, t]);
 
   function selectDate(dateISO: string) {
     setSelectedDate(dateISO);
@@ -208,13 +218,13 @@ export function BookingWizard({
       if (!result.ok) {
         setReservingSlot(null);
         if (result.reason === "slot_taken") {
-          setError("That time slot was just taken — please choose another.");
+          setError(t.slotTaken);
           const refreshed = await fetchSlots(businessId, serviceId, selectedDate);
           setSlots(refreshed);
         } else if (result.reason === "too_many_holds") {
-          setError("You already have a couple of reservations in progress — complete or let one expire before reserving another.");
+          setError(t.tooManyHolds);
         } else {
-          setError("Something went wrong. Please try again.");
+          setError(t.genericError);
         }
         return;
       }
@@ -250,9 +260,9 @@ export function BookingWizard({
       </div>
 
       <div>
-        <div className="text-sm text-ink-secondary">Available times</div>
+        <div className="text-sm text-ink-secondary">{t.availableTimes}</div>
         {slots.length === 0 ? (
-          <JoinWaitlistForm businessId={businessId} serviceId={serviceId} targetDate={selectedDate} />
+          <JoinWaitlistForm businessId={businessId} serviceId={serviceId} targetDate={selectedDate} t={t} />
         ) : (
           <div className="mt-3 flex max-h-96 flex-col gap-5 overflow-y-auto pr-1">
             {periods.map((period) => (
@@ -272,9 +282,9 @@ export function BookingWizard({
                           : "border-border text-ink-secondary hover:border-sunburst hover:text-ink"
                       }`}
                     >
-                      <span>{formatSlotTime(s.startTime)}</span>
+                      <span>{formatSlotTime(s.startTime, locale)}</span>
                       <span className="text-xs text-ink-muted">
-                        {reservingSlot === s.startTime ? "Reserving..." : "Reserve instantly"}
+                        {reservingSlot === s.startTime ? t.reserving : t.reserveInstantly}
                       </span>
                     </button>
                   ))}

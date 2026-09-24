@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-export function PaymentStatusPoller({ bookingId }: { bookingId: string }) {
+export function PaymentStatusPoller({ bookingId, label }: { bookingId: string; label: string }) {
   const router = useRouter();
 
   useEffect(() => {
@@ -19,9 +19,5 @@ export function PaymentStatusPoller({ bookingId }: { bookingId: string }) {
     return () => clearInterval(interval);
   }, [bookingId, router]);
 
-  return (
-    <p className="mt-6 text-sm text-ink-muted">
-      Waiting for payment... this page will update automatically once paid.
-    </p>
-  );
+  return <p className="mt-6 text-sm text-ink-muted">{label}</p>;
 }

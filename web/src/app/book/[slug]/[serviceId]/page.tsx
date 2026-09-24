@@ -7,6 +7,8 @@ import { effectiveDepositAmount } from "@/lib/deposit";
 import { BookingWizard } from "./BookingWizard";
 import { ClassSessionPicker } from "./ClassSessionPicker";
 import { BookingHeader } from "@/components/booking/BookingHeader";
+import { getVisitorLocale } from "@/lib/visitor-locale";
+import { publicText, tMinutes, tPolicy } from "@/lib/i18n-public";
 
 function todayISOInBangkok(): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date());
@@ -24,6 +26,8 @@ export default async function ServiceBookingPage({
   const business = await getBusinessBySlug(slug);
   if (!business) notFound();
   const businessId = business.id;
+  const locale = await getVisitorLocale();
+  const t = publicText[locale];
 
   const service = await withBusinessContext(businessId, async (c) => {
     const { rows: [row] } = await c.query(
@@ -70,16 +74,16 @@ export default async function ServiceBookingPage({
               />
             ) : null}
             <h1 className="mt-4 text-2xl font-semibold">{service.name}</h1>
-            <p className="mt-1 text-sm text-ink-secondary">{service.duration_minutes} min</p>
+            <p className="mt-1 text-sm text-ink-secondary">{tMinutes(locale, service.duration_minutes)}</p>
             {service.description && (
               <p className="mt-3 whitespace-pre-line text-sm text-ink-secondary">{service.description}</p>
             )}
             <div className="mt-4 rounded-xl border border-border p-3 text-sm text-ink-secondary">
               {service.payment_mode === "free" ? (
-                <div>Free — no payment required.</div>
+                <div>{t.freeNoPayment}</div>
               ) : service.payment_mode === "deposit" ? (
                 <div>
-                  Deposit due now:{" "}
+                  {t.depositDueNow}:{" "}
                   <strong className="text-ink">
                     {formatBaht(
                       effectiveDepositAmount({
@@ -89,15 +93,14 @@ export default async function ServiceBookingPage({
                       })
                     )}
                   </strong>
-                  {service.deposit_percent != null ? ` (${service.deposit_percent}%)` : ""} of the full price{" "}
-                  {formatBaht(service.price_amount)}, the rest is paid on arrival.
+                  {service.deposit_percent != null ? ` (${service.deposit_percent}%)` : ""} {t.ofFullPrice}{" "}
+                  {formatBaht(service.price_amount)}, {t.restOnArrival}
                 </div>
               ) : (
-                <div>Full payment due now: <strong className="text-ink">{formatBaht(service.price_amount)}</strong></div>
+                <div>{t.fullPaymentDueNow}: <strong className="text-ink">{formatBaht(service.price_amount)}</strong></div>
               )}
               <div className="mt-1 text-xs text-ink-muted">
-                Reschedule up to {business.reschedule_cutoff_hours}h and cancel up to{" "}
-                {business.cancel_cutoff_hours}h before your appointment.
+                {tPolicy(locale, business.reschedule_cutoff_hours, business.cancel_cutoff_hours)}
               </div>
             </div>
           </div>
@@ -108,6 +111,7 @@ export default async function ServiceBookingPage({
               businessId={businessId}
               sessions={classSessions}
               source={src ?? null}
+              locale={locale}
             />
           ) : (
             <BookingWizard
@@ -117,6 +121,7 @@ export default async function ServiceBookingPage({
               initialDate={today}
               initialSlots={initialSlots}
               source={src ?? null}
+              locale={locale}
             />
           )}
         </div>

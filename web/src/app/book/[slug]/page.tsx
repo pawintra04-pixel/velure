@@ -5,6 +5,8 @@ import { withBusinessContext } from "@/db/client";
 import { formatBaht } from "@/lib/money";
 import { effectiveDepositAmount } from "@/lib/deposit";
 import { BookingHeader } from "@/components/booking/BookingHeader";
+import { getVisitorLocale } from "@/lib/visitor-locale";
+import { publicText, tMinutes, tPolicy } from "@/lib/i18n-public";
 
 export default async function BookServicesPage({
   params,
@@ -17,6 +19,8 @@ export default async function BookServicesPage({
   const { src } = await searchParams;
   const business = await getBusinessBySlug(slug);
   if (!business) notFound();
+  const locale = await getVisitorLocale();
+  const t = publicText[locale];
 
   const services = await withBusinessContext(business.id, async (c) => {
     const { rows } = await c.query(
@@ -30,7 +34,7 @@ export default async function BookServicesPage({
     <>
       <BookingHeader businessName={business.name} slug={slug} businessId={business.id} logoUrl={business.logo_url} />
       <div className="mx-auto max-w-5xl px-6 py-10 lg:px-10">
-        <h1 className="text-2xl font-semibold">Choose a service</h1>
+        <h1 className="text-2xl font-semibold">{t.chooseService}</h1>
         {business.description && (
           <p className="mt-2 max-w-2xl text-sm text-ink-secondary">{business.description}</p>
         )}
@@ -46,14 +50,12 @@ export default async function BookServicesPage({
             the roadmap's own "Policies must be clearly shown BEFORE
             customer payment" requirement, previously not met at all. */}
         <p className="mt-3 max-w-2xl text-xs text-ink-muted">
-          Reschedule up to {business.reschedule_cutoff_hours}h and cancel up to{" "}
-          {business.cancel_cutoff_hours}h before your appointment. Deposits (where shown) are
-          part of the total price, not an extra charge.
+          {tPolicy(locale, business.reschedule_cutoff_hours, business.cancel_cutoff_hours)} {t.depositNote}
         </p>
 
         <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {services.length === 0 && (
-            <div className="text-sm text-ink-muted">No services available yet.</div>
+            <div className="text-sm text-ink-muted">{t.noServices}</div>
           )}
           {services.map((s) => (
             <Link
@@ -70,7 +72,7 @@ export default async function BookServicesPage({
               <div className="flex flex-1 flex-col justify-between p-6">
                 <div>
                   <div className="font-medium">{s.name}</div>
-                  <div className="mt-1 text-sm text-ink-muted">{s.duration_minutes} min</div>
+                  <div className="mt-1 text-sm text-ink-muted">{tMinutes(locale, s.duration_minutes)}</div>
                   {s.description && (
                     <p className="mt-2 line-clamp-2 text-sm text-ink-secondary">{s.description}</p>
                   )}
@@ -89,7 +91,8 @@ export default async function BookServicesPage({
                   </div>
                   {s.payment_mode === "deposit" && (
                     <div className="text-xs text-ink-muted">
-                      Deposit{s.deposit_percent != null ? ` (${s.deposit_percent}%)` : ""} — full price {formatBaht(s.price_amount)}
+                      {t.deposit}
+                      {s.deposit_percent != null ? ` (${s.deposit_percent}%)` : ""} — {t.fullPrice} {formatBaht(s.price_amount)}
                     </div>
                   )}
                 </div>

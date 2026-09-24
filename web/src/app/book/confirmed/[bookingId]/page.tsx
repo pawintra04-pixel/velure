@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { adminPool } from "@/db/client";
 import { formatBaht } from "@/lib/money";
 import { BookingHeader } from "@/components/booking/BookingHeader";
+import { getVisitorLocale } from "@/lib/visitor-locale";
+import { publicText, intlLocale, tStatus, tPayCashOnArrival } from "@/lib/i18n-public";
 
 // Same adminPool-by-unguessable-id exception as the payment page/status route.
 export default async function ConfirmedPage({
@@ -11,6 +13,8 @@ export default async function ConfirmedPage({
   params: Promise<{ bookingId: string }>;
 }) {
   const { bookingId } = await params;
+  const locale = await getVisitorLocale();
+  const t = publicText[locale];
 
   const { rows: [booking] } = await adminPool.query(
     `SELECT b.status, b.start_time, b.amount, b.payment_method, s.name AS service_name, st.name AS staff_name,
@@ -25,7 +29,7 @@ export default async function ConfirmedPage({
 
   if (!booking) notFound();
 
-  const time = new Intl.DateTimeFormat("en-US", {
+  const time = new Intl.DateTimeFormat(intlLocale(locale), {
     timeZone: "Asia/Bangkok",
     dateStyle: "full",
     timeStyle: "short",
@@ -37,40 +41,40 @@ export default async function ConfirmedPage({
       <div className="mx-auto flex max-w-lg flex-col items-center px-6 py-16 text-center">
         <div className="text-4xl">✅</div>
         <h1 className="mt-4 text-2xl font-semibold">
-          {booking.status === "CONFIRMED" ? "Booking confirmed" : `Status: ${booking.status}`}
+          {booking.status === "CONFIRMED" ? t.bookingConfirmed : `${t.status}: ${tStatus(locale, booking.status)}`}
         </h1>
         <div className="mt-6 w-full rounded-2xl border border-border bg-surface p-6 text-left text-sm">
           <div className="flex justify-between py-1">
-            <span className="text-ink-muted">Service</span>
+            <span className="text-ink-muted">{t.service}</span>
             <span>{booking.service_name}</span>
           </div>
           <div className="flex justify-between py-1">
-            <span className="text-ink-muted">Staff</span>
+            <span className="text-ink-muted">{t.staff}</span>
             <span>{booking.staff_name}</span>
           </div>
           <div className="flex justify-between py-1">
-            <span className="text-ink-muted">Time</span>
+            <span className="text-ink-muted">{t.time}</span>
             <span>{time}</span>
           </div>
           <div className="flex justify-between py-1">
-            <span className="text-ink-muted">{booking.payment_method === "cash" ? "Amount due (cash)" : "Amount paid"}</span>
+            <span className="text-ink-muted">{booking.payment_method === "cash" ? t.amountDueCash : t.amountPaid}</span>
             <span>{formatBaht(booking.amount)}</span>
           </div>
         </div>
 
         {booking.payment_method === "cash" && booking.amount > 0 && (
           <div className="mt-4 w-full rounded-xl border border-[#fdf3e6] bg-[#fdf3e6] px-4 py-3 text-left text-sm text-[#a8681c]">
-            Pay {formatBaht(booking.amount)} in cash when you arrive.
+            {tPayCashOnArrival(locale, formatBaht(booking.amount))}
           </div>
         )}
 
         {booking.status === "CONFIRMED" && (
           <Link href={`/book/manage/${bookingId}`} className="mt-4 text-sm text-accent underline">
-            Need to reschedule or cancel?
+            {t.needReschedule}
           </Link>
         )}
         <Link href={`/book/${booking.business_slug}/signup`} className="mt-2 text-sm text-ink-muted underline">
-          Create an account to see all your bookings in one place
+          {t.createAccountCta}
         </Link>
       </div>
     </>

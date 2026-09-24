@@ -4,24 +4,29 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { fetchRescheduleSlots, rescheduleBooking, cancelBooking } from "./actions";
 import type { Slot } from "@/lib/availability";
+import type { Locale } from "@/lib/i18n";
+import { publicText, intlLocale, tRescheduleCutoff, tCancelCutoff, tMovedTo, tPaidAmount, type PublicText } from "@/lib/i18n-public";
 
-function nextDays(n: number): { iso: string; weekday: string; day: string }[] {
+function nextDays(n: number, locale: Locale): { iso: string; weekday: string; day: string }[] {
   const days = [];
   for (let i = 0; i < n; i++) {
     const d = new Date();
     d.setDate(d.getDate() + i);
     const iso = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(d);
-    const weekday = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Bangkok", weekday: "short" })
-      .format(d)
-      .slice(0, 2);
+    // Seven columns must fit a phone: Thai "narrow" gives จ / อ / พฤ, while
+    // English short names are trimmed to two letters ("Mon" -> "Mo").
+    const weekday =
+      locale === "th"
+        ? new Intl.DateTimeFormat("th-TH", { timeZone: "Asia/Bangkok", weekday: "narrow" }).format(d)
+        : new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Bangkok", weekday: "short" }).format(d).slice(0, 2);
     const day = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Bangkok", day: "numeric" }).format(d);
     days.push({ iso, weekday, day });
   }
   return days;
 }
 
-function formatSlotTime(iso: string): string {
-  return new Intl.DateTimeFormat("en-US", {
+function formatSlotTime(iso: string, locale: Locale): string {
+  return new Intl.DateTimeFormat(intlLocale(locale), {
     timeZone: "Asia/Bangkok",
     hour: "2-digit",
     minute: "2-digit",
@@ -36,11 +41,11 @@ function hourInBangkok(iso: string): number {
   );
 }
 
-function groupByPeriod(slots: Slot[]): { label: string; slots: Slot[] }[] {
+function groupByPeriod(slots: Slot[], t: PublicText): { label: string; slots: Slot[] }[] {
   const groups = [
-    { label: "Morning", slots: [] as Slot[] },
-    { label: "Afternoon", slots: [] as Slot[] },
-    { label: "Evening", slots: [] as Slot[] },
+    { label: t.morning, slots: [] as Slot[] },
+    { label: t.afternoon, slots: [] as Slot[] },
+    { label: t.evening, slots: [] as Slot[] },
   ];
   for (const slot of slots) {
     const hour = hourInBangkok(slot.startTime);
@@ -61,6 +66,7 @@ export function ManageBookingClient({
   rescheduleCutoffHours,
   cancelCutoffHours,
   isClassBooking,
+  locale,
 }: {
   bookingId: string;
   serviceId: string;
@@ -72,10 +78,12 @@ export function ManageBookingClient({
   rescheduleCutoffHours: number;
   cancelCutoffHours: number;
   isClassBooking: boolean;
+  locale: Locale;
 }) {
+  const t = publicText[locale];
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const days = useMemo(() => nextDays(7), []);
+  const days = useMemo(() => nextDays(7, locale), [locale]);
   const today = days[0].iso;
 
   const [showReschedule, setShowReschedule] = useState(false);
@@ -87,7 +95,7 @@ export function ManageBookingClient({
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [pendingSlot, setPendingSlot] = useState<Slot | null>(null);
 
-  const periods = useMemo(() => groupByPeriod(slots), [slots]);
+  const periods = useMemo(() => groupByPeriod(slots, t), [slots, t]);
 
   function openReschedule() {
     setShowReschedule(true);
@@ -117,7 +125,7 @@ export function ManageBookingClient({
         setError(result.error);
         return;
       }
-      setMovedTo(formatSlotTime(slot.startTime));
+      setMovedTo(formatSlotTime(slot.startTime, locale));
       router.refresh();
       setShowReschedule(false);
     });
@@ -138,13 +146,13 @@ export function ManageBookingClient({
   }
 
   if (cancelled) {
-    return <p className="mt-4 text-sm text-ink-secondary">✓ Your booking has been cancelled.</p>;
+    return <p className="mt-4 text-sm text-ink-secondary">{t.cancelledDone}</p>;
   }
 
   return (
     <div className="mt-4 flex flex-col gap-4">
       {error && <div className="text-sm text-[#d03b3b]">{error}</div>}
-      {movedTo && <div className="text-sm text-[#1b8a5a]">✓ Booking moved to {movedTo}</div>}
+      {movedTo && <div className="text-sm text-[#1b8a5a]">{tMovedTo(locale, movedTo)}</div>}
 
       {!showReschedule && (
         <div className="flex gap-2">
@@ -153,13 +161,13 @@ export function ManageBookingClient({
               onClick={openReschedule}
               className="flex-1 rounded-xl border border-border py-2.5 text-sm hover:bg-page"
             >
-              Reschedule
+              {t.reschedule}
             </button>
           ) : (
             <div className="flex-1 text-xs text-ink-muted">
               {isClassBooking
-                ? "Class bookings can't be rescheduled — cancel and book a different session instead."
-                : `Reschedules must be made at least ${rescheduleCutoffHours}h in advance.`}
+                ? t.classNoReschedule
+                : tRescheduleCutoff(locale, rescheduleCutoffHours)}
             </div>
           )}
         </div>
@@ -192,7 +200,7 @@ export function ManageBookingClient({
           </div>
           <div className="mt-4">
             {slots.length === 0 ? (
-              <div className="text-sm text-ink-muted">No available times on this day</div>
+              <div className="text-sm text-ink-muted">{t.noTimesThisDay}</div>
             ) : (
               <div className="flex max-h-72 flex-col gap-4 overflow-y-auto pr-1">
                 {periods.map((period) => (
@@ -208,7 +216,7 @@ export function ManageBookingClient({
                           onClick={() => setPendingSlot(s)}
                           className="flex items-center justify-between rounded-xl border border-border px-4 py-3 text-sm text-ink-secondary transition-colors hover:border-ink/40 hover:text-ink disabled:opacity-50"
                         >
-                          <span>{formatSlotTime(s.startTime)}</span>
+                          <span>{formatSlotTime(s.startTime, locale)}</span>
                         </button>
                       ))}
                     </div>
@@ -226,44 +234,45 @@ export function ManageBookingClient({
           disabled={isPending}
           className="rounded-xl border border-border py-2.5 text-sm text-[#d03b3b] disabled:opacity-50"
         >
-          Cancel booking
+          {t.cancelBooking}
         </button>
       ) : (
         <div className="text-xs text-ink-muted">
-          Cancellations must be made at least {cancelCutoffHours}h in advance.
+          {tCancelCutoff(locale, cancelCutoffHours)}
         </div>
       )}
 
       {pendingSlot && (
         <ConfirmOverlay
-          title="Move this booking?"
+          title={t.moveTitle}
           onCancel={() => setPendingSlot(null)}
           onConfirm={confirmReschedule}
-          confirmLabel={isPending ? "Moving…" : "Move booking"}
+          confirmLabel={isPending ? t.moving : t.moveBooking}
           confirmDisabled={isPending}
+          cancelLabel={t.keepAsIs}
         >
-          <SummaryBlock serviceName={serviceName} timeLabel={formatSlotTime(pendingSlot.startTime)} amountLabel={amountLabel} />
-          <p className="mt-3">This replaces your current time. The old time will be freed up.</p>
+          <SummaryBlock serviceName={serviceName} timeLabel={formatSlotTime(pendingSlot.startTime, locale)} amountLabel={amountLabel} locale={locale} />
+          <p className="mt-3">{t.moveDesc}</p>
         </ConfirmOverlay>
       )}
 
       {confirmingCancel && (
         <ConfirmOverlay
-          title="Cancel this booking?"
+          title={t.cancelTitle}
           onCancel={() => setConfirmingCancel(false)}
           onConfirm={confirmCancel}
-          confirmLabel={isPending ? "Cancelling…" : "Cancel booking"}
+          confirmLabel={isPending ? t.cancelling : t.cancelBooking}
           confirmDisabled={isPending}
+          cancelLabel={t.keepAsIs}
           danger
         >
-          <SummaryBlock serviceName={serviceName} timeLabel={startTimeLabel} amountLabel={amountLabel} />
+          <SummaryBlock serviceName={serviceName} timeLabel={startTimeLabel} amountLabel={amountLabel} locale={locale} />
           <p className="mt-3">
-            Cancelling will free this time slot.
+            {t.cancelFreesSlot}
             {amountLabel && (
               <>
                 {" "}
-                Payment will <strong>not</strong> automatically be refunded — contact the business
-                if a refund is expected.
+                {t.cancelNoRefundBefore} <strong>{t.cancelNoRefundNot}</strong> {t.cancelNoRefundAfter}
               </>
             )}
           </p>
@@ -277,16 +286,18 @@ function SummaryBlock({
   serviceName,
   timeLabel,
   amountLabel,
+  locale,
 }: {
   serviceName: string;
   timeLabel: string;
   amountLabel: string | null;
+  locale: Locale;
 }) {
   return (
     <div className="rounded-lg bg-page px-3 py-2 text-sm text-ink">
       <div>{serviceName}</div>
       <div className="text-ink-secondary">{timeLabel}</div>
-      <div className="text-ink-secondary">{amountLabel ? `${amountLabel} paid` : "Free booking"}</div>
+      <div className="text-ink-secondary">{amountLabel ? tPaidAmount(locale, amountLabel) : publicText[locale].freeBooking}</div>
     </div>
   );
 }
@@ -302,6 +313,7 @@ function ConfirmOverlay({
   onConfirm,
   confirmLabel,
   confirmDisabled,
+  cancelLabel,
   danger,
 }: {
   title: string;
@@ -310,6 +322,7 @@ function ConfirmOverlay({
   onConfirm: () => void;
   confirmLabel: string;
   confirmDisabled?: boolean;
+  cancelLabel: string;
   danger?: boolean;
 }) {
   return (
@@ -326,7 +339,7 @@ function ConfirmOverlay({
             onClick={onCancel}
             className="rounded-full border border-border px-4 py-2 text-sm hover:bg-page"
           >
-            Keep as is
+            {cancelLabel}
           </button>
           <button
             type="button"

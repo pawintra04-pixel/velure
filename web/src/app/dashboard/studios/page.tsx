@@ -122,13 +122,22 @@ export default async function StudiosPage({
           </div>
 
           <div className="flex flex-wrap items-center gap-4 border-t border-border px-5 py-3">
-            <form action={toggleResourceActive}>
-              <input type="hidden" name="resourceId" value={activeRoom.id} />
-              <input type="hidden" name="nextActive" value={String(!activeRoom.is_active)} />
-              <button type="submit" className="text-xs text-ink-muted hover:text-ink-secondary">
-                {activeRoom.is_active ? t.closeTemporarily : t.reopen}
-              </button>
-            </form>
+            <ConfirmSubmitButton
+              action={toggleResourceActive}
+              hiddenFields={{ resourceId: activeRoom.id, nextActive: String(!activeRoom.is_active) }}
+              label={activeRoom.is_active ? t.closeTemporarily : t.reopen}
+              pendingLabel={t.working}
+              confirmTitle={activeRoom.is_active ? t.closeRoomTitle : t.reopenRoomTitle}
+              confirmDescription={
+                <>
+                  <strong className="text-ink">{activeRoom.name}</strong>
+                  <p className="mt-2">{activeRoom.is_active ? t.closeRoomDesc : t.reopenRoomDesc}</p>
+                </>
+              }
+              confirmLabel={activeRoom.is_active ? t.closeTemporarily : t.reopen}
+              cancelLabel={t.goBack}
+              buttonClassName="text-xs text-ink-muted hover:text-ink-secondary"
+            />
             <ConfirmSubmitButton
               action={deleteResource}
               hiddenFields={{ resourceId: activeRoom.id }}
@@ -137,6 +146,7 @@ export default async function StudiosPage({
               confirmTitle={tRemoveResourceTitle(locale, activeRoom.name)}
               confirmDescription={t.removeResourceDesc}
               confirmLabel={t.remove}
+              cancelLabel={t.goBack}
               danger
               buttonClassName="text-xs text-ink-muted hover:text-[#d03b3b]"
             />

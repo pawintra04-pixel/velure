@@ -1,7 +1,7 @@
 import { formatBaht } from "@/lib/money";
 import type { CalendarBooking } from "@/lib/bookings-data";
 import { statusMeta } from "@/lib/booking-status";
-import { updateBookingStatus, updateBookingNote } from "./actions";
+import { updateBookingStatus, updateBookingNote, markBookingPaid } from "./actions";
 import { RefundButton, type RefundKind } from "./RefundButton";
 import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 import { bookingsText, tPaidLine, tRefundedLine, type Locale } from "@/lib/i18n";
@@ -15,8 +15,16 @@ import { bookingsText, tPaidLine, tRefundedLine, type Locale } from "@/lib/i18n"
 function refundKindFor(b: CalendarBooking): RefundKind | null {
   if (b.hasPayment && b.amount > 0) return "stripe";
   if (b.packagePurchaseId) return "package";
-  if (b.amount > 0) return "cash";
+  // Staff-created bookings track what was actually collected — nothing to
+  // hand back if the customer hasn't paid anything yet.
+  if ((b.amountPaid ?? b.amount) > 0) return "cash";
   return null;
+}
+
+/** What a staff-created booking still owes — 0 for everything else. */
+function outstandingOf(b: CalendarBooking): number {
+  if (b.amountPaid === null || ["CANCELLED", "REFUNDED", "PARTIALLY_REFUNDED", "EXPIRED"].includes(b.status)) return 0;
+  return Math.max(b.amount - b.amountPaid, 0);
 }
 
 // Kept as a className map (not the shared statusMeta color) for WeekView's
@@ -74,7 +82,13 @@ function formatDateTimeCompact(iso: string): string {
 // confirmation dialog never reduces to a bare "Are you sure?".
 function BookingSummary({ b, locale }: { b: CalendarBooking; locale: Locale }) {
   const t = bookingsText[locale];
-  const paidLine = tPaidLine(locale, b.amount, formatBaht(b.amount), b.hasPayment);
+  // Staff-created bookings track exactly what's been collected — say that
+  // instead of the generic online-payment line, which can only tell
+  // "paid via Stripe" from "not".
+  const paidLine =
+    b.amountPaid !== null
+      ? `${formatBaht(b.amount)} · ${t.paidSoFar} ${formatBaht(b.amountPaid)}`
+      : tPaidLine(locale, b.amount, formatBaht(b.amount), b.hasPayment);
   return (
     <div className="rounded-lg bg-page px-3 py-2 text-sm text-ink">
       <div>{b.customerName ?? t.unnamedCustomer}</div>
@@ -105,12 +119,25 @@ function StatusDot({ status, locale }: { status: string; locale: Locale }) {
 // horizontally on narrow screens. Renders with no border/rounded/bg of its
 // own — the list it's placed in owns one shared container + thin dividers,
 // so N bookings read as one list, not N cards.
-export function BookingRow({ b, locale, compact = false }: { b: CalendarBooking; locale: Locale; compact?: boolean }) {
+export function BookingRow({
+  b,
+  locale,
+  compact = false,
+  defaultOpen = false,
+}: {
+  b: CalendarBooking;
+  locale: Locale;
+  compact?: boolean;
+  /** Start with the actions panel expanded — used by the calendar's detail popup. */
+  defaultOpen?: boolean;
+}) {
   const t = bookingsText[locale];
   const refundKind = refundKindFor(b);
+  const outstanding = outstandingOf(b);
   return (
     <details
       id={`booking-${b.id}`}
+      open={defaultOpen || undefined}
       className={`[&_summary::-webkit-details-marker]:hidden ${b.isFlagged ? "border-l-2 border-l-[#a8681c] bg-[#fdf3e6]/40" : ""}`}
     >
       <summary className="flex cursor-pointer list-none flex-col gap-2 px-4 py-3 hover:bg-ink/[0.02] sm:flex-row sm:items-center sm:gap-4 sm:py-2.5">
@@ -136,6 +163,16 @@ export function BookingRow({ b, locale, compact = false }: { b: CalendarBooking;
               </span>
             )}
           </div>
+          {(outstanding > 0 || b.paymentNote) && (
+            <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[13px]">
+              {outstanding > 0 && (
+                <span className="rounded-full bg-[#d03b3b]/10 px-2 py-0.5 text-[11px] text-[#d03b3b]">
+                  {t.outstanding} {formatBaht(outstanding)}
+                </span>
+              )}
+              {b.paymentNote && <span className="truncate text-ink-muted">{b.paymentNote}</span>}
+            </div>
+          )}
           {b.ownerNote && <div className="mt-0.5 truncate text-[13px] text-[#a8681c]">{b.ownerNote}</div>}
           {b.refundedAt && (
             <div className="mt-0.5 truncate text-[13px] text-ink-muted">
@@ -208,6 +245,26 @@ export function BookingRow({ b, locale, compact = false }: { b: CalendarBooking;
               confirmLabel={t.cancelBooking}
               cancelLabel={t.keepBooking}
               danger
+              buttonClassName="rounded-full border border-border px-3 py-2 text-xs hover:bg-page"
+            />
+          )}
+          {outstanding > 0 && (
+            <ConfirmSubmitButton
+              action={markBookingPaid}
+              hiddenFields={{ bookingId: b.id }}
+              label={`${t.markPaid} (${formatBaht(outstanding)})`}
+              pendingLabel={t.saving}
+              confirmTitle={t.markPaidTitle}
+              confirmDescription={
+                <>
+                  <BookingSummary b={b} locale={locale} />
+                  <p className="mt-3">
+                    {t.markPaidDesc} <strong>{formatBaht(outstanding)}</strong>
+                  </p>
+                </>
+              }
+              confirmLabel={t.markPaid}
+              cancelLabel={t.goBack}
               buttonClassName="rounded-full border border-border px-3 py-2 text-xs hover:bg-page"
             />
           )}

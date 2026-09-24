@@ -4,6 +4,9 @@ import type { CalendarBooking, CalendarClassSession, CalendarStaffBlock } from "
 import { colorForService } from "@/lib/service-color";
 import { statusMeta } from "@/lib/booking-status";
 import { calendarText, type Locale } from "@/lib/i18n";
+import { BookingList, BookingRow } from "../bookings/BookingRow";
+import { ClassSessionDetail } from "./DayDetailList";
+import { DetailPopup } from "./DetailPopup";
 
 const FLAG_BG = "#fdf3e6";
 const FLAG_INK = "#a8681c";
@@ -287,8 +290,11 @@ export function CalendarGrid({
                     );
                   })}
 
-                {!isOff &&
-                  (sessionsByStaff.get(member.id) ?? []).map((session) => {
+                {/* Sessions/bookings render even on an "off" day: a substitute
+                    teacher (reassigned for one date) or a phone booking can
+                    legitimately sit outside someone's usual hours, and hiding
+                    it under the Off overlay would make it vanish from the grid. */}
+                {(sessionsByStaff.get(member.id) ?? []).map((session) => {
                     const rect = clampedRect(session.startTime, session.endTime);
                     if (!rect) return null;
                     const color = session.isFlagged
@@ -296,10 +302,20 @@ export function CalendarGrid({
                       : colorForService(session.serviceName);
                     const soon = isStartingSoon(session.startTime);
                     return (
-                      <Link
+                      <DetailPopup
                         key={session.id}
-                        href={`#class-${session.id}`}
-                        title={classTooltip(session)}
+                        tooltip={classTooltip(session)}
+                        title={t.classDetails}
+                        closeLabel={t.closePopup}
+                        detail={
+                          <ClassSessionDetail
+                            session={session}
+                            attendees={allBookings.filter((b) => b.classSessionId === session.id)}
+                            staff={staff}
+                            locale={locale}
+                            inPopup
+                          />
+                        }
                         className="absolute inset-x-1 overflow-hidden rounded-lg px-1.5 py-0.5 text-xs leading-tight"
                         style={{ top: rect.top, height: rect.height, backgroundColor: color.bg, color: color.ink }}
                       >
@@ -311,12 +327,11 @@ export function CalendarGrid({
                           {session.seatsBooked}/{session.capacity}
                           {soon && ` · ${t.soon}`}
                         </div>
-                      </Link>
+                      </DetailPopup>
                     );
                   })}
 
-                {!isOff &&
-                  (bookingsByStaff.get(member.id) ?? []).map((booking) => {
+                {(bookingsByStaff.get(member.id) ?? []).map((booking) => {
                     const rect = clampedRect(booking.startTime, booking.endTime);
                     if (!rect) return null;
                     // Semantic status color, not service color — confirmed
@@ -331,10 +346,16 @@ export function CalendarGrid({
                     const pending = booking.status === "TEMPORARY_HOLD" || booking.status === "PAYMENT_PENDING";
                     const soon = isStartingSoon(booking.startTime);
                     return (
-                      <Link
+                      <DetailPopup
                         key={booking.id}
-                        href={`#booking-${booking.id}`}
-                        title={bookingTooltip(booking)}
+                        tooltip={bookingTooltip(booking)}
+                        title={t.bookingDetails}
+                        closeLabel={t.closePopup}
+                        detail={
+                          <BookingList>
+                            <BookingRow b={booking} locale={locale} defaultOpen />
+                          </BookingList>
+                        }
                         className="absolute inset-x-1 overflow-hidden rounded-lg border-l-4 px-1.5 py-0.5 text-xs leading-tight"
                         style={{
                           top: rect.top,
@@ -352,7 +373,7 @@ export function CalendarGrid({
                           {booking.customerName ?? (pending ? t.pendingDetails : t.walkIn)}
                           {soon && ` · ${t.soon}`}
                         </div>
-                      </Link>
+                      </DetailPopup>
                     );
                   })}
               </div>

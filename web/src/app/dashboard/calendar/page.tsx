@@ -200,7 +200,7 @@ async function DayView({
           locale={locale}
         />
 
-        <DayDetailList bookings={bookings} classSessions={classSessions} locale={locale} />
+        <DayDetailList bookings={bookings} classSessions={classSessions} staff={staff} locale={locale} />
       </div>
     </>
   );

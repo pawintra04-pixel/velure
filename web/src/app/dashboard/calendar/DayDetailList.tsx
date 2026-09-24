@@ -1,6 +1,7 @@
 import type { CalendarBooking, CalendarClassSession } from "@/lib/bookings-data";
 import { BookingRow, BookingList, formatTime } from "../bookings/BookingRow";
-import { updateClassSessionNote } from "../classes/actions";
+import { updateClassSessionNote, reassignClassSessionStaff } from "../classes/actions";
+import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 import { calendarText, type Locale } from "@/lib/i18n";
 
 // Every attendee of a class session shares the class's own booking row, but
@@ -10,10 +11,12 @@ import { calendarText, type Locale } from "@/lib/i18n";
 export function DayDetailList({
   bookings,
   classSessions,
+  staff,
   locale,
 }: {
   bookings: CalendarBooking[];
   classSessions: CalendarClassSession[];
+  staff: { id: string; name: string }[];
   locale: Locale;
 }) {
   const t = calendarText[locale];
@@ -55,6 +58,7 @@ export function DayDetailList({
           key={entry.session.id}
           session={entry.session}
           attendees={attendeesBySession.get(entry.session.id) ?? []}
+          staff={staff}
           locale={locale}
         />
       );
@@ -77,19 +81,23 @@ export function DayDetailList({
   return <div className="mt-4 flex flex-col gap-4">{renderBlocks}</div>;
 }
 
-function ClassSessionDetail({
+export function ClassSessionDetail({
   session,
   attendees,
+  staff,
   locale,
+  inPopup = false,
 }: {
   session: CalendarClassSession;
   attendees: CalendarBooking[];
+  staff: { id: string; name: string }[];
   locale: Locale;
+  inPopup?: boolean;
 }) {
   const t = calendarText[locale];
   return (
     <div
-      id={`class-${session.id}`}
+      id={inPopup ? undefined : `class-${session.id}`}
       className={`rounded-2xl border p-5 ${
         session.isFlagged ? "border-[#a8681c]/40 bg-[#fdf3e6]/40" : "border-border bg-surface"
       }`}
@@ -129,6 +137,42 @@ function ClassSessionDetail({
           </button>
         </form>
       </details>
+
+      {staff.length > 1 && (
+        <div className="mt-3">
+          <ConfirmSubmitButton
+            action={reassignClassSessionStaff}
+            hiddenFields={{ sessionId: session.id }}
+            label={t.changeTeacherButton}
+            pendingLabel={t.changing}
+            confirmTitle={t.changeTeacherTitle}
+            confirmDescription={t.changeTeacherDesc}
+            confirmLabel={t.changeTeacherButton}
+            cancelLabel={t.goBack}
+            formClassName="flex flex-wrap items-center gap-2"
+            buttonClassName="rounded-full border border-border px-3 py-1.5 text-xs hover:bg-page"
+          >
+            <label className="text-xs text-ink-secondary" htmlFor={`teacher-${session.id}`}>
+              {t.changeTeacher}
+            </label>
+            <select
+              // keyed on the current teacher so the uncontrolled select
+              // resets to the new value after a successful change
+              key={session.staffId}
+              id={`teacher-${session.id}`}
+              name="staffId"
+              defaultValue={session.staffId}
+              className="rounded-lg border border-border px-2 py-1.5 text-sm"
+            >
+              {staff.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </ConfirmSubmitButton>
+        </div>
+      )}
 
       <div className="mt-4 border-t border-border pt-3">
         <div className="text-xs font-medium text-ink-secondary">{t.attendees} ({attendees.length})</div>

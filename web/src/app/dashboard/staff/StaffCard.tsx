@@ -92,6 +92,7 @@ export function StaffCard({ staff, locale }: { staff: Staff; locale: Locale }) {
             confirmTitle={tDeleteStaffTitle(locale, staff.name)}
             confirmDescription={t.deleteStaffDesc}
             confirmLabel={t.delete}
+            cancelLabel={t.goBack}
             danger
             buttonClassName="rounded-full border border-border px-3 py-1.5 text-sm text-ink-secondary hover:bg-page"
           />
@@ -180,12 +181,25 @@ export function StaffCard({ staff, locale }: { staff: Staff; locale: Locale }) {
                   {formatBlockTime(b.start_time, locale)} – {formatBlockTime(b.end_time, locale)}
                   {b.reason && <span className="text-ink-muted"> · {b.reason}</span>}
                 </span>
-                <form action={deleteStaffBlock}>
-                  <input type="hidden" name="blockId" value={b.id} />
-                  <button type="submit" className="text-xs text-ink-muted hover:text-ink-secondary">
-                    {t.remove}
-                  </button>
-                </form>
+                <ConfirmSubmitButton
+                  action={deleteStaffBlock}
+                  hiddenFields={{ blockId: b.id }}
+                  label={t.remove}
+                  pendingLabel={t.removing}
+                  confirmTitle={t.removeBlockTitle}
+                  confirmDescription={
+                    <>
+                      <strong className="text-ink">
+                        {staff.name} · {formatBlockTime(b.start_time, locale)} – {formatBlockTime(b.end_time, locale)}
+                      </strong>
+                      <p className="mt-2">{t.removeBlockDesc}</p>
+                    </>
+                  }
+                  confirmLabel={t.remove}
+                  cancelLabel={t.goBack}
+                  danger
+                  buttonClassName="text-xs text-ink-muted hover:text-[#d03b3b]"
+                />
               </div>
             ))}
             {staff.blocks.length === 0 && (

@@ -68,10 +68,12 @@ export async function deleteResource(
 // full schedule history, just stops it from being offered for NEW class
 // sessions going forward (see CreateSessionForm's resource list, which
 // only queries is_active rooms). Existing sessions/bookings already in this
-// room are untouched either way. Plain fire-and-forget action (same shape
-// as deleteStaffBlock) — the page's own "Closed temporarily" badge is the
-// visible confirmation, so no separate result state is needed.
-export async function toggleResourceActive(formData: FormData): Promise<void> {
+// room are untouched either way. Goes through ConfirmSubmitButton like
+// every other consequential dashboard action.
+export async function toggleResourceActive(
+  _prev: ActionResult | null,
+  formData: FormData
+): Promise<ActionResult> {
   const owner = await requireOwner();
   const resourceId = String(formData.get("resourceId") ?? "");
   const nextActive = formData.get("nextActive") === "true";
@@ -82,4 +84,5 @@ export async function toggleResourceActive(formData: FormData): Promise<void> {
 
   revalidatePath("/dashboard/studios");
   revalidatePath("/dashboard/classes");
+  return { ok: true };
 }

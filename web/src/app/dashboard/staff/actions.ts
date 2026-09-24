@@ -157,7 +157,10 @@ export async function createStaffBlock(
   return { ok: true };
 }
 
-export async function deleteStaffBlock(formData: FormData): Promise<void> {
+export async function deleteStaffBlock(
+  _prev: ConfirmActionResult | null,
+  formData: FormData
+): Promise<ConfirmActionResult> {
   const owner = await requireOwner();
   const blockId = String(formData.get("blockId") ?? "");
 
@@ -166,6 +169,7 @@ export async function deleteStaffBlock(formData: FormData): Promise<void> {
   );
 
   revalidatePath("/dashboard/staff");
+  return { ok: true };
 }
 
 // A staff member with existing bookings can't be deleted (the FK from

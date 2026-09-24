@@ -61,6 +61,7 @@ export default async function WaitlistPage() {
                   confirmTitle={t.removeTitle}
                   confirmDescription={t.removeDesc}
                   confirmLabel={t.remove}
+                  cancelLabel={t.goBack}
                   danger
                   buttonClassName="rounded-full border border-border px-3 py-1.5 text-sm text-ink-secondary hover:bg-page"
                 />

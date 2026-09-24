@@ -112,7 +112,9 @@ export function ConfirmSubmitButton({
         )}
       </form>
 
-      {state && !state.ok && <div className="mt-1 text-xs text-[#d03b3b]">{state.error}</div>}
+      {/* max-w: an error sentence must wrap under its own trigger rather
+          than stretch a shrink-0 button cluster wider than its card. */}
+      {state && !state.ok && <div className="mt-1 max-w-xs text-xs text-[#d03b3b]">{state.error}</div>}
       {state && state.ok && state.message && (
         <div className="mt-1 text-xs text-[#1b8a5a]">✓ {state.message}</div>
       )}

@@ -1,5 +1,6 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { requireOwner } from "@/lib/auth";
 import { withBusinessContext } from "@/db/client";
@@ -30,7 +31,14 @@ function dayOfWeekISO(dateISO: string): number {
  */
 async function createOneSession(
   businessId: string,
-  params: { serviceId: string; staffId: string; resourceId: string | null; dateISO: string; timeHHMM: string }
+  params: {
+    serviceId: string;
+    staffId: string;
+    resourceId: string | null;
+    dateISO: string;
+    timeHHMM: string;
+    seriesId: string | null;
+  }
 ): Promise<{ ok: true } | { ok: false; reason: "not_a_class" | "slot_taken" | "error" }> {
   try {
     await withBusinessContext(businessId, async (c) => {
@@ -55,8 +63,9 @@ async function createOneSession(
       }
 
       await c.query(
-        `INSERT INTO class_sessions (business_id, service_id, staff_id, start_time, end_time, capacity, resource_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        `INSERT INTO class_sessions
+           (business_id, service_id, staff_id, start_time, end_time, capacity, resource_id, series_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
         [
           businessId,
           params.serviceId,
@@ -65,6 +74,7 @@ async function createOneSession(
           endTime.toISOString(),
           service.capacity,
           params.resourceId,
+          params.seriesId,
         ]
       );
     });
@@ -128,6 +138,9 @@ export async function createClassSession(
     return { ok: false, error: "That's more than a year of sessions at once — narrow the date range." };
   }
 
+  // A repeat groups its occurrences under one series_id purely so the
+  // Classes page can show them as one entry — each row stays independent.
+  const seriesId = dates.length > 1 ? randomUUID() : null;
   let created = 0;
   let conflicts = 0;
   for (const dateISO of dates) {
@@ -137,6 +150,7 @@ export async function createClassSession(
       resourceId,
       dateISO,
       timeHHMM,
+      seriesId,
     });
     if (result.ok) {
       created++;
@@ -263,4 +277,59 @@ export async function deleteClassSession(
   revalidatePath("/dashboard/classes");
   revalidatePath("/dashboard/calendar");
   return { ok: true, message: "Session removed" };
+}
+
+/**
+ * Swap who teaches ONE occurrence (e.g. the usual teacher is sick that
+ * day) — never the rest of its series. Attendee bookings carry their own
+ * staff_id (Reports group by bookings.staff_id), so they move together
+ * with the session in the same transaction; otherwise month-end reports
+ * would credit the teacher who didn't actually teach.
+ */
+export async function reassignClassSessionStaff(
+  _prev: ActionResult | null,
+  formData: FormData
+): Promise<ActionResult> {
+  const owner = await requireOwner();
+  const sessionId = String(formData.get("sessionId") ?? "");
+  const staffId = String(formData.get("staffId") ?? "");
+  if (!sessionId || !staffId) return { ok: false, error: "Pick a staff member." };
+
+  try {
+    await withBusinessContext(owner.businessId, async (c) => {
+      const { rows: [session] } = await c.query<{ staff_id: string; start_time: Date; end_time: Date }>(
+        `SELECT staff_id, start_time, end_time FROM class_sessions WHERE id = $1 FOR UPDATE`,
+        [sessionId]
+      );
+      if (!session) throw new Error("not_found");
+      if (session.staff_id === staffId) throw new Error("same_staff");
+      if (
+        !(await isStaffFreeForRange(
+          c,
+          staffId,
+          new Date(session.start_time).toISOString(),
+          new Date(session.end_time).toISOString()
+        ))
+      ) {
+        throw new Error("slot_taken");
+      }
+      await c.query(`UPDATE class_sessions SET staff_id = $1 WHERE id = $2`, [staffId, sessionId]);
+      await c.query(`UPDATE bookings SET staff_id = $1 WHERE class_session_id = $2`, [staffId, sessionId]);
+    });
+  } catch (err) {
+    const msg = (err as Error).message;
+    if (msg === "same_staff") return { ok: false, error: "That person is already teaching this session." };
+    if (msg === "not_found") return { ok: false, error: "This session no longer exists." };
+    if (isSlotConflictError(err) || msg === "slot_taken") {
+      return { ok: false, error: "That staff member already has something scheduled at this time." };
+    }
+    console.error("reassignClassSessionStaff failed", err);
+    return { ok: false, error: "Something went wrong. Please try again." };
+  }
+
+  revalidatePath("/dashboard/classes");
+  revalidatePath("/dashboard/calendar");
+  revalidatePath("/dashboard/bookings");
+  revalidatePath("/dashboard/reports");
+  return { ok: true, message: "Teacher changed for this session" };
 }

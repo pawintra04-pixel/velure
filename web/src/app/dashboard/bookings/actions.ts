@@ -9,9 +9,11 @@ import { isStaffFreeForRange, isSlotConflictError } from "@/lib/staff-availabili
 import { stripe } from "@/lib/stripe";
 import { notify } from "@/lib/notifications";
 import { checkWaitlistForCancelledSlot } from "@/lib/waitlist";
-import { effectiveDepositAmount } from "@/lib/deposit";
 
 export type ManualBookingResult = { ok: true } | { ok: false; error: string };
+
+const MANUAL_PAYMENT_STATUSES = ["paid", "unpaid", "deposit", "free"] as const;
+type ManualPaymentStatus = (typeof MANUAL_PAYMENT_STATUSES)[number];
 
 export type RefundResult = { ok: true; message?: string } | { ok: false; error: string };
 
@@ -58,11 +60,12 @@ export async function refundBooking(bookingId: string, amountBaht: number | null
         stripe_payment_intent_id: string | null;
         package_purchase_id: string | null;
         amount: number;
+        amount_paid: number | null;
         status: string;
         stripe_account_id: string | null;
         class_session_id: string | null;
       }>(
-        `SELECT b.stripe_payment_intent_id, b.package_purchase_id, b.amount, b.status,
+        `SELECT b.stripe_payment_intent_id, b.package_purchase_id, b.amount, b.amount_paid, b.status,
                 b.class_session_id, biz.stripe_account_id
          FROM bookings b JOIN businesses biz ON biz.id = b.business_id
          WHERE b.id = $1`,
@@ -94,13 +97,18 @@ export async function refundBooking(bookingId: string, amountBaht: number | null
           classSessionId: booking.class_session_id,
         };
       }
-      if (booking.amount <= 0) throw new Error("no_payment");
+      // A staff-created booking tracks what's actually been collected
+      // (amount_paid) — only that much can be handed back, not the full
+      // price of a booking the customer never paid for (or only paid a
+      // deposit on). NULL means untracked: the original cash-checkout path.
+      const collected = booking.amount_paid ?? booking.amount;
+      if (collected <= 0) throw new Error("no_payment");
       return {
         kind: "cash" as const,
         paymentIntentId: null,
         stripeAccountId: null,
         packagePurchaseId: null,
-        bookingAmount: booking.amount,
+        bookingAmount: collected,
         status: booking.status,
         classSessionId: booking.class_session_id,
       };
@@ -207,10 +215,18 @@ export async function createManualBooking(
   const customerName = String(formData.get("customerName") ?? "").trim();
   const customerPhone = String(formData.get("customerPhone") ?? "").trim();
   const customerEmail = String(formData.get("customerEmail") ?? "").trim();
-  const noCharge = formData.get("noCharge") === "on";
+  const paymentStatusRaw = String(formData.get("paymentStatus") ?? "unpaid");
+  const paymentStatus: ManualPaymentStatus = (MANUAL_PAYMENT_STATUSES as readonly string[]).includes(paymentStatusRaw)
+    ? (paymentStatusRaw as ManualPaymentStatus)
+    : "unpaid";
+  const depositPaidBaht = Number(formData.get("depositPaidBaht") ?? "");
+  const paymentNote = String(formData.get("paymentNote") ?? "").trim().slice(0, 200);
 
   if (!serviceId || !staffId || !dateISO || !timeHHMM || !customerName || !customerPhone) {
     return { ok: false, error: "Service, staff, date/time, customer name and phone are all required." };
+  }
+  if (paymentStatus === "deposit" && (!Number.isFinite(depositPaidBaht) || depositPaidBaht <= 0)) {
+    return { ok: false, error: "Enter how much deposit the customer paid." };
   }
 
   try {
@@ -238,17 +254,16 @@ export async function createManualBooking(
         throw new Error("slot_taken");
       }
 
-      const amount = noCharge
-        ? 0
-        : service.payment_mode === "free"
-          ? 0
-          : service.payment_mode === "deposit"
-            ? effectiveDepositAmount({
-                priceAmount: service.price_amount,
-                depositAmount: service.deposit_amount,
-                depositPercent: service.deposit_percent,
-              })
-            : service.price_amount;
+      // `amount` is what this booking is worth (what Reports count);
+      // `amountPaid` is how much of it the customer has actually handed
+      // over so far — the owner can mark the rest as received later from
+      // the booking row (markBookingPaid). A "free" service is always worth
+      // 0 regardless of what the owner picked.
+      const amount = paymentStatus === "free" || service.payment_mode === "free" ? 0 : service.price_amount;
+      const depositPaid = Math.round(depositPaidBaht * 100);
+      if (paymentStatus === "deposit" && depositPaid >= amount) throw new Error("deposit_too_large");
+      const amountPaid =
+        paymentStatus === "paid" ? amount : paymentStatus === "deposit" ? depositPaid : 0;
 
       const { rows: [customer] } = await c.query(
         `INSERT INTO customers (business_id, name, phone, email)
@@ -261,8 +276,9 @@ export async function createManualBooking(
 
       await c.query(
         `INSERT INTO bookings
-           (business_id, service_id, staff_id, customer_id, start_time, end_time, status, amount, created_by_staff)
-         VALUES ($1, $2, $3, $4, $5, $6, 'CONFIRMED', $7, true)`,
+           (business_id, service_id, staff_id, customer_id, start_time, end_time, status, amount, created_by_staff,
+            amount_paid, payment_note)
+         VALUES ($1, $2, $3, $4, $5, $6, 'CONFIRMED', $7, true, $8, $9)`,
         [
           owner.businessId,
           serviceId,
@@ -271,12 +287,17 @@ export async function createManualBooking(
           startTime.toISOString(),
           endTime.toISOString(),
           amount,
+          amountPaid,
+          paymentNote || null,
         ]
       );
     });
   } catch (err) {
     if (isSlotConflictError(err) || (err as Error).message === "slot_taken") {
       return { ok: false, error: "That staff member already has something scheduled at this time." };
+    }
+    if ((err as Error).message === "deposit_too_large") {
+      return { ok: false, error: "The deposit must be less than the full price — pick \"Paid in full\" instead." };
     }
     console.error("createManualBooking failed", err);
     return { ok: false, error: "Something went wrong. Please try again." };
@@ -385,4 +406,36 @@ export async function updateBookingNote(
   revalidatePath("/dashboard/bookings");
   revalidatePath("/dashboard/calendar");
   return { ok: true, message: "Note saved" };
+}
+
+/**
+ * The customer paid the rest of a staff-created booking in person (see
+ * amount_paid in 033_manual_payment_and_class_series.sql). Only ever moves
+ * amount_paid up to the booking's own amount — the value comes from the
+ * row, never the client — and only for rows that track it at all.
+ */
+export async function markBookingPaid(
+  _prev: StatusChangeResult | null,
+  formData: FormData
+): Promise<StatusChangeResult> {
+  const owner = await requireOwner();
+  const bookingId = String(formData.get("bookingId") ?? "");
+
+  const updated = await withBusinessContext(owner.businessId, async (c) => {
+    const { rowCount } = await c.query(
+      `UPDATE bookings SET amount_paid = amount
+       WHERE id = $1 AND amount_paid IS NOT NULL AND amount_paid < amount
+         AND status IN ('CONFIRMED', 'COMPLETED', 'NO_SHOW')`,
+      [bookingId]
+    );
+    return (rowCount ?? 0) > 0;
+  });
+
+  revalidatePath("/dashboard/bookings");
+  revalidatePath("/dashboard/calendar");
+  revalidatePath("/dashboard");
+  if (!updated) {
+    return { ok: false, error: "This booking already changed. Nothing was updated." };
+  }
+  return { ok: true, message: "Marked as paid" };
 }

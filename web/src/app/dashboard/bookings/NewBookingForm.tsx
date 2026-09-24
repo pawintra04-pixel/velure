@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { startTransition, useActionState, useEffect, useState } from "react";
 import { createManualBooking, type ManualBookingResult } from "./actions";
 import { bookingsText, type Locale } from "@/lib/i18n";
 
@@ -20,6 +20,8 @@ export function NewBookingForm({
 }) {
   const t = bookingsText[locale];
   const [open, setOpen] = useState(false);
+  const [paymentStatus, setPaymentStatus] = useState<"paid" | "unpaid" | "deposit" | "free">("unpaid");
+  const PAYMENT_LABEL = { paid: t.payPaid, unpaid: t.payUnpaid, deposit: t.payDeposit, free: t.payFree };
   const [state, formAction, pending] = useActionState<ManualBookingResult | null, FormData>(
     createManualBooking,
     null
@@ -33,7 +35,10 @@ export function NewBookingForm({
   const [prevState, setPrevState] = useState(state);
   if (state !== prevState) {
     setPrevState(state);
-    if (state?.ok) setOpen(false);
+    if (state?.ok) {
+      setOpen(false);
+      setPaymentStatus("unpaid");
+    }
   }
 
   useEffect(() => {
@@ -81,7 +86,18 @@ export function NewBookingForm({
               </button>
             </div>
 
-            <form action={formAction} className="flex flex-1 flex-col gap-3 overflow-y-auto px-6 py-5">
+            {/* onSubmit instead of action={formAction}: React 19 auto-resets a
+                form after its action runs — including on an error — which
+                wiped every field the owner typed and desynced the payment
+                radios. Dispatching manually keeps the fields on error. */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const data = new FormData(e.currentTarget);
+                startTransition(() => formAction(data));
+              }}
+              className="flex flex-1 flex-col gap-3 overflow-y-auto px-6 py-5"
+            >
               <div className="text-sm font-medium text-ink-secondary">{t.forPhoneEtc}</div>
 
               <select name="serviceId" className="rounded-lg border border-border px-3 py-2 text-sm">
@@ -120,10 +136,40 @@ export function NewBookingForm({
                 placeholder={t.emailOptional}
                 className="rounded-lg border border-border px-3 py-2 text-sm"
               />
-              <label className="flex items-center gap-2 text-sm text-ink-secondary">
-                <input type="checkbox" name="noCharge" />
-                {t.noCharge}
-              </label>
+              <fieldset className="flex flex-col gap-2 rounded-lg border border-border px-3 py-2.5">
+                <legend className="px-1 text-sm font-medium text-ink-secondary">{t.paymentLabel}</legend>
+                <div className="grid grid-cols-2 gap-2">
+                  {(["paid", "unpaid", "deposit", "free"] as const).map((v) => (
+                    <label key={v} className="flex items-center gap-2 text-sm text-ink-secondary">
+                      <input
+                        type="radio"
+                        name="paymentStatus"
+                        value={v}
+                        checked={paymentStatus === v}
+                        onChange={() => setPaymentStatus(v)}
+                      />
+                      {PAYMENT_LABEL[v]}
+                    </label>
+                  ))}
+                </div>
+                {paymentStatus === "deposit" && (
+                  <input
+                    name="depositPaidBaht"
+                    type="number"
+                    min="1"
+                    step="any"
+                    inputMode="decimal"
+                    placeholder={t.depositAmountPlaceholder}
+                    className="rounded-lg border border-border px-3 py-2 text-sm"
+                  />
+                )}
+                <input
+                  name="paymentNote"
+                  maxLength={200}
+                  placeholder={t.paymentNotePlaceholder}
+                  className="rounded-lg border border-border px-3 py-2 text-sm"
+                />
+              </fieldset>
 
               {state && !state.ok && <div className="text-sm text-[#d03b3b]">{state.error}</div>}
 

@@ -34,12 +34,15 @@ export function RefundButton({
   const t = bookingsText[locale];
   const [step, setStep] = useState<"closed" | "amount" | "confirm">("closed");
   const [mode, setMode] = useState<"full" | "partial">("full");
-  const [amountBaht, setAmountBaht] = useState(String(b.amount / 100));
+  // A staff-created cash booking can only refund what was actually
+  // collected (amount_paid) — mirrors refundBooking's server-side cap.
+  const refundable = kind === "cash" ? (b.amountPaid ?? b.amount) : b.amount;
+  const [amountBaht, setAmountBaht] = useState(String(refundable / 100));
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const refundAmountBaht = mode === "full" ? b.amount / 100 : Number(amountBaht);
+  const refundAmountBaht = mode === "full" ? refundable / 100 : Number(amountBaht);
 
   function submit() {
     setError(null);
@@ -80,7 +83,7 @@ export function RefundButton({
         <div className="flex flex-wrap gap-3">
           <label className="flex items-center gap-1.5">
             <input type="radio" checked={mode === "full"} onChange={() => setMode("full")} />
-            {tFullAmount(locale, formatBaht(b.amount))}
+            {tFullAmount(locale, formatBaht(refundable))}
           </label>
           <label className="flex items-center gap-1.5">
             <input type="radio" checked={mode === "partial"} onChange={() => setMode("partial")} />
@@ -90,7 +93,7 @@ export function RefundButton({
             <input
               type="number"
               min={0}
-              max={b.amount / 100}
+              max={refundable / 100}
               step="0.01"
               value={amountBaht}
               onChange={(e) => setAmountBaht(e.target.value)}
@@ -131,7 +134,7 @@ export function RefundButton({
           <div className="text-ink-secondary">{formatTime(b.startTime)}</div>
           {kind !== "package" && (
             <div className="text-ink-secondary">
-              {tPaidRefunding(locale, formatBaht(b.amount), formatBaht(Math.round(refundAmountBaht * 100)))}
+              {tPaidRefunding(locale, formatBaht(refundable), formatBaht(Math.round(refundAmountBaht * 100)))}
             </div>
           )}
         </div>

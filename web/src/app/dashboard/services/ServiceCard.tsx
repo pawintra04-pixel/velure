@@ -11,6 +11,7 @@ import {
   type ActionResult,
 } from "./actions";
 import { formatBaht } from "@/lib/money";
+import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 import { effectiveDepositAmount } from "@/lib/deposit";
 import { servicesText, tClassSeats, tMinBuffer, tDepositPercentLabel, type Locale } from "@/lib/i18n";
 
@@ -78,7 +79,7 @@ export function ServiceCard({ service, locale }: { service: Service; locale: Loc
 
   return (
     <div className="rounded-2xl border border-border bg-surface p-5">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <div className="flex items-center gap-4">
           {service.image_url && (
             // eslint-disable-next-line @next/next/no-img-element -- owner-pasted external URL, not a static/optimizable asset
@@ -137,15 +138,23 @@ export function ServiceCard({ service, locale }: { service: Service; locale: Loc
             >
               {expanded ? t.close : t.edit}
             </button>
-            <form action={deleteService}>
-              <input type="hidden" name="serviceId" value={service.id} />
-              <button
-                type="submit"
-                className="rounded-full border border-border px-3 py-1.5 text-sm text-ink-secondary hover:bg-page"
-              >
-                {t.delete}
-              </button>
-            </form>
+            <ConfirmSubmitButton
+              action={deleteService}
+              hiddenFields={{ serviceId: service.id }}
+              label={t.delete}
+              pendingLabel={t.deleting}
+              confirmTitle={t.deleteServiceTitle}
+              confirmDescription={
+                <>
+                  <strong className="text-ink">{service.name}</strong>
+                  <p className="mt-2">{t.deleteServiceDesc}</p>
+                </>
+              }
+              confirmLabel={t.delete}
+              cancelLabel={t.goBack}
+              danger
+              buttonClassName="rounded-full border border-border px-3 py-1.5 text-sm text-ink-secondary hover:bg-page"
+            />
           </div>
         </div>
       </div>
@@ -289,12 +298,23 @@ export function ServiceCard({ service, locale }: { service: Service; locale: Loc
                       {IMPORTANCE_LABEL[f.importance]}
                     </span>
                   </div>
-                  <form action={deleteCustomField}>
-                    <input type="hidden" name="fieldId" value={f.id} />
-                    <button type="submit" className="text-xs text-ink-muted hover:text-ink-secondary">
-                      {t.remove}
-                    </button>
-                  </form>
+                  <ConfirmSubmitButton
+                    action={deleteCustomField}
+                    hiddenFields={{ fieldId: f.id }}
+                    label={t.remove}
+                    pendingLabel={t.removing}
+                    confirmTitle={t.removeFieldTitle}
+                    confirmDescription={
+                      <>
+                        <strong className="text-ink">{f.label}</strong>
+                        <p className="mt-2">{t.removeFieldDesc}</p>
+                      </>
+                    }
+                    confirmLabel={t.remove}
+                    cancelLabel={t.goBack}
+                    danger
+                    buttonClassName="text-xs text-ink-muted hover:text-[#d03b3b]"
+                  />
                 </div>
               ))}
               {service.customFields.length === 0 && (
@@ -348,12 +368,23 @@ export function ServiceCard({ service, locale }: { service: Service; locale: Loc
                       {p.validityDays && ` · ${p.validityDays} ${t.daysSuffix}`}
                     </span>
                   </div>
-                  <form action={deactivatePackage}>
-                    <input type="hidden" name="packageId" value={p.id} />
-                    <button type="submit" className="text-xs text-ink-muted hover:text-ink-secondary">
-                      {t.remove}
-                    </button>
-                  </form>
+                  <ConfirmSubmitButton
+                    action={deactivatePackage}
+                    hiddenFields={{ packageId: p.id }}
+                    label={t.remove}
+                    pendingLabel={t.removing}
+                    confirmTitle={t.removePackageTitle}
+                    confirmDescription={
+                      <>
+                        <strong className="text-ink">{p.name}</strong>
+                        <p className="mt-2">{t.removePackageDesc}</p>
+                      </>
+                    }
+                    confirmLabel={t.remove}
+                    cancelLabel={t.goBack}
+                    danger
+                    buttonClassName="text-xs text-ink-muted hover:text-[#d03b3b]"
+                  />
                 </div>
               ))}
               {service.packages.length === 0 && (

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireOwner } from "@/lib/auth";
 import { withBusinessContext } from "@/db/client";
+import type { ConfirmActionResult } from "@/components/ConfirmSubmitButton";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -171,7 +172,10 @@ export async function addCustomField(
   return { ok: true };
 }
 
-export async function deleteCustomField(formData: FormData): Promise<void> {
+export async function deleteCustomField(
+  _prev: ConfirmActionResult | null,
+  formData: FormData
+): Promise<ConfirmActionResult> {
   const owner = await requireOwner();
   const fieldId = String(formData.get("fieldId") ?? "");
 
@@ -180,6 +184,7 @@ export async function deleteCustomField(formData: FormData): Promise<void> {
   );
 
   revalidatePath("/dashboard/services");
+  return { ok: true };
 }
 
 export async function addPackage(
@@ -220,7 +225,10 @@ export async function addPackage(
   return { ok: true };
 }
 
-export async function deactivatePackage(formData: FormData): Promise<void> {
+export async function deactivatePackage(
+  _prev: ConfirmActionResult | null,
+  formData: FormData
+): Promise<ConfirmActionResult> {
   const owner = await requireOwner();
   const packageId = String(formData.get("packageId") ?? "");
 
@@ -233,9 +241,17 @@ export async function deactivatePackage(formData: FormData): Promise<void> {
   );
 
   revalidatePath("/dashboard/services");
+  return { ok: true };
 }
 
-export async function deleteService(formData: FormData): Promise<void> {
+// Same typed-result shape as deleteStaff: a service with booking history
+// failing to delete is an expected outcome the owner should see inline, not
+// a thrown Error that escapes to the dashboard's "Something went wrong"
+// error boundary.
+export async function deleteService(
+  _prev: ConfirmActionResult | null,
+  formData: FormData
+): Promise<ConfirmActionResult> {
   const owner = await requireOwner();
   const serviceId = String(formData.get("serviceId") ?? "");
 
@@ -245,15 +261,20 @@ export async function deleteService(formData: FormData): Promise<void> {
       await c.query(`DELETE FROM services WHERE id = $1`, [serviceId]);
     });
   } catch (err) {
-    // bookings.service_id has no ON DELETE CASCADE on purpose — a service
-    // with booking history shouldn't silently vanish out from under it.
+    // bookings.service_id (and class_sessions/packages) have no ON DELETE
+    // CASCADE on purpose — a service with any history, including cancelled
+    // bookings, shouldn't silently vanish out from under it.
     if ((err as { code?: string }).code === "23503") {
-      throw new Error(
-        "Can't delete a service that has existing bookings. Bookings must be cancelled first."
-      );
+      return {
+        ok: false,
+        error:
+          "Can't delete a service that has any booking, class or package history, including past or cancelled bookings — this keeps existing reports accurate.",
+      };
     }
-    throw err;
+    console.error("deleteService failed", err);
+    return { ok: false, error: "Something went wrong. Please try again." };
   }
 
   revalidatePath("/dashboard/services");
+  return { ok: true };
 }

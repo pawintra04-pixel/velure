@@ -18,6 +18,9 @@ export type CalendarBooking = {
   paymentMethod: string | null;
   refundedAmount: number | null;
   refundedAt: string | null;
+  /** Only set for staff-created bookings — see 033_manual_payment_and_class_series.sql. */
+  amountPaid: number | null;
+  paymentNote: string | null;
 };
 
 export async function getBookingsInRange(
@@ -29,7 +32,7 @@ export async function getBookingsInRange(
     const { rows } = await c.query(
       `SELECT b.id, b.start_time, b.end_time, b.status, b.amount, b.stripe_payment_intent_id,
               b.class_session_id, b.package_purchase_id, b.owner_note, b.is_flagged, b.payment_method,
-              b.refunded_amount, b.refunded_at,
+              b.refunded_amount, b.refunded_at, b.amount_paid, b.payment_note,
               s.name AS service_name, st.id AS staff_id, st.name AS staff_name,
               cu.name AS customer_name
        FROM bookings b
@@ -58,6 +61,8 @@ export async function getBookingsInRange(
       paymentMethod: r.payment_method,
       refundedAmount: r.refunded_amount,
       refundedAt: r.refunded_at,
+      amountPaid: r.amount_paid,
+      paymentNote: r.payment_note,
     }));
   });
 }

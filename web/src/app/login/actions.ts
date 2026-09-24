@@ -9,7 +9,7 @@ export async function logIn(_prev: AuthResult | null, formData: FormData): Promi
   const password = String(formData.get("password") ?? "");
 
   if (!email || !password) {
-    return { ok: false, error: "Email and password are required." };
+    return { ok: false, error: "กรุณากรอกอีเมลและรหัสผ่าน" };
   }
 
   const { rows: [owner] } = await adminPool.query(
@@ -19,7 +19,7 @@ export async function logIn(_prev: AuthResult | null, formData: FormData): Promi
   // Deliberately identical error for "no such email" and "wrong password" —
   // distinguishing them lets an attacker enumerate registered emails.
   if (!owner || !(await verifyPassword(password, owner.password_hash))) {
-    return { ok: false, error: "Invalid email or password." };
+    return { ok: false, error: "อีเมลหรือรหัสผ่านไม่ถูกต้อง" };
   }
 
   await createSession(owner.id);

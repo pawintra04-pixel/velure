@@ -9,19 +9,23 @@ export async function signUp(_prev: AuthResult | null, formData: FormData): Prom
   const businessName = String(formData.get("businessName") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
+  const acceptedTerms = formData.get("acceptTerms") === "on";
 
   if (!businessName || !email || !password) {
-    return { ok: false, error: "All fields are required." };
+    return { ok: false, error: "กรุณากรอกข้อมูลให้ครบทุกช่อง" };
+  }
+  if (!acceptedTerms) {
+    return { ok: false, error: "กรุณายอมรับข้อกำหนดการใช้งานและนโยบายความเป็นส่วนตัว" };
   }
   if (password.length < 8) {
-    return { ok: false, error: "Password must be at least 8 characters." };
+    return { ok: false, error: "รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร" };
   }
 
   const { rows: existing } = await adminPool.query(`SELECT 1 FROM owners WHERE email = $1`, [
     email,
   ]);
   if (existing.length > 0) {
-    return { ok: false, error: "An account with that email already exists." };
+    return { ok: false, error: "อีเมลนี้มีบัญชีอยู่แล้ว" };
   }
 
   const client = await adminPool.connect();
@@ -51,7 +55,7 @@ export async function signUp(_prev: AuthResult | null, formData: FormData): Prom
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("signUp failed", err);
-    return { ok: false, error: "Something went wrong. Please try again." };
+    return { ok: false, error: "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง" };
   } finally {
     client.release();
   }

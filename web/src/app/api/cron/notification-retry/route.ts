@@ -19,7 +19,10 @@ import { retryFailedNotifications, remindUpcomingBookings } from "@/lib/notifica
  */
 export async function GET(req: Request) {
   const authHeader = req.headers.get("authorization");
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  const secret = process.env.CRON_SECRET;
+  // An unset secret must fail closed — otherwise the literal header
+  // "Bearer undefined" would match and anyone could trigger the job.
+  if (!secret || authHeader !== `Bearer ${secret}`) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

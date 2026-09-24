@@ -8,6 +8,7 @@ import {
 import { formatBaht } from "@/lib/money";
 import { PageShell, PageHeader, Surface } from "@/components/dashboard/PageShell";
 import { adminLogOut } from "./login/actions";
+import { getLaunchReadiness } from "@/lib/launch-readiness";
 
 function formatDateTime(iso: string): string {
   return new Intl.DateTimeFormat("en-US", {
@@ -19,6 +20,8 @@ function formatDateTime(iso: string): string {
 
 export default async function AdminPage() {
   const admin = await requireAdmin();
+  const readiness = getLaunchReadiness();
+  const readyCount = readiness.filter((c) => c.ok).length;
   const [overview, businesses, errors, notificationFailures] = await Promise.all([
     getPlatformOverview(),
     listBusinessSummaries(),
@@ -62,6 +65,25 @@ export default async function AdminPage() {
         Revenue collected by businesses through Velure — not Velure&apos;s own revenue (see
         README: no platform subscription/commission billing exists yet).
       </p>
+
+      <div className="mt-8">
+        <h2 className="text-[13.5px] font-semibold uppercase tracking-wide text-ink">
+          ความพร้อมก่อนเปิดใช้จริง ({readyCount}/{readiness.length})
+        </h2>
+        <ul className="mt-3 divide-y divide-border overflow-hidden rounded-2xl border border-border bg-surface">
+          {readiness.map((c) => (
+            <li key={c.id} className="flex gap-3 px-4 py-3 text-sm">
+              <span aria-hidden="true" className="shrink-0">
+                {c.ok ? "✅" : c.manual ? "☐" : "⚠️"}
+              </span>
+              <div className="min-w-0">
+                <div className={c.ok ? "text-ink-secondary" : "text-ink"}>{c.label}</div>
+                {!c.ok && <div className="mt-0.5 text-xs text-ink-muted">{c.fix}</div>}
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
 
       <div className="mt-8">
         <h2 className="text-[13.5px] font-semibold uppercase tracking-wide text-ink">
